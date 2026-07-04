@@ -56,6 +56,7 @@ async def register(db: AsyncSession, payload: RegisterRequest) -> RegisterRespon
 
     owner = User(
         company_id=company.id,
+        matricule=company.registration_code,
         full_name=payload.owner_full_name,
         phone=payload.company_phone,
         password_hash=hash_password(payload.password),
@@ -71,31 +72,32 @@ async def register(db: AsyncSession, payload: RegisterRequest) -> RegisterRespon
     )
 
 
-async def _find_login_user(db: AsyncSession, matricule: str, phone: str | None) -> tuple[Company, User]:
-    company = await company_repository.get_by_registration_code(db, matricule)
-    if company is None:
-        raise UnauthorizedError("Identifiants invalides.")
-
-    if phone:
-        user = await user_repository.get_by_company_and_phone(db, company.id, phone)
-    else:
-        user = await user_repository.get_owner_by_company(db, company.id)
-
+async def _find_login_user(db: AsyncSession, matricule: str) -> User:
+    user = await user_repository.get_by_matricule(db, matricule)
     if user is None:
         raise UnauthorizedError("Identifiants invalides.")
-
-    return company, user
+    return user
 
 
 def _is_locked(user: User) -> bool:
     return user.locked_until is not None and user.locked_until > datetime.now(timezone.utc)
 
 
-async def login(db: AsyncSession, matricule: str, phone: str | None, password: str) -> tuple[str, str]:
-    company, user = await _find_login_user(db, matricule, phone)
-
-    if company.status == CompanyStatus.SUSPENDED:
+async def _ensure_company_active(db: AsyncSession, user: User) -> None:
+    if user.is_super_admin:
+        return
+    if user.company_id is None:
+        raise UnauthorizedError("Compte introuvable ou désactivé.")
+    company = await company_repository.get_by_id(db, user.company_id)
+    if company is None or company.status == CompanyStatus.SUSPENDED:
         raise UnauthorizedError("Entreprise suspendue.")
+
+
+async def login(db: AsyncSession, matricule: str, password: str) -> tuple[str, str]:
+    user = await _find_login_user(db, matricule)
+
+    if not user.is_super_admin:
+        await _ensure_company_active(db, user)
 
     if _is_locked(user):
         raise UnauthorizedError("Compte temporairement verrouillé suite à plusieurs échecs. Réessayez plus tard.")
@@ -117,7 +119,22 @@ async def login(db: AsyncSession, matricule: str, phone: str | None, password: s
     await db.commit()
 
     company_id = str(user.company_id) if user.company_id else None
-    return create_access_token(str(user.id), company_id), create_refresh_token(str(user.id), company_id)
+    return (
+        create_access_token(
+            str(user.id),
+            company_id,
+            matricule=user.matricule,
+            is_owner=user.is_owner,
+            is_super_admin=user.is_super_admin,
+        ),
+        create_refresh_token(
+            str(user.id),
+            company_id,
+            matricule=user.matricule,
+            is_owner=user.is_owner,
+            is_super_admin=user.is_super_admin,
+        ),
+    )
 
 
 async def refresh_tokens(db: AsyncSession, refresh_token: str) -> tuple[str, str]:
@@ -131,24 +148,34 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> tuple[str, str
     if user is None or not user.is_active or _is_locked(user):
         raise UnauthorizedError("Compte introuvable, désactivé ou verrouillé.")
 
+    if not user.is_super_admin:
+        await _ensure_company_active(db, user)
+
     company_id = str(user.company_id) if user.company_id else None
-    return create_access_token(str(user.id), company_id), create_refresh_token(str(user.id), company_id)
+    return (
+        create_access_token(
+            str(user.id),
+            company_id,
+            matricule=user.matricule,
+            is_owner=user.is_owner,
+            is_super_admin=user.is_super_admin,
+        ),
+        create_refresh_token(
+            str(user.id),
+            company_id,
+            matricule=user.matricule,
+            is_owner=user.is_owner,
+            is_super_admin=user.is_super_admin,
+        ),
+    )
 
 
 def _generate_otp_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-async def request_password_reset(db: AsyncSession, matricule: str, phone: str | None) -> None:
-    company = await company_repository.get_by_registration_code(db, matricule)
-    if company is None:
-        return
-
-    if phone:
-        user = await user_repository.get_by_company_and_phone(db, company.id, phone)
-    else:
-        user = await user_repository.get_owner_by_company(db, company.id)
-
+async def request_password_reset(db: AsyncSession, matricule: str) -> None:
+    user = await user_repository.get_by_matricule(db, matricule)
     if user is None:
         return
 
@@ -164,19 +191,10 @@ async def request_password_reset(db: AsyncSession, matricule: str, phone: str | 
 async def reset_password(
     db: AsyncSession,
     matricule: str,
-    phone: str | None,
     otp_code: str,
     new_password: str,
 ) -> None:
-    company = await company_repository.get_by_registration_code(db, matricule)
-    if company is None:
-        raise UnauthorizedError("Identifiants invalides.")
-
-    if phone:
-        user = await user_repository.get_by_company_and_phone(db, company.id, phone)
-    else:
-        user = await user_repository.get_owner_by_company(db, company.id)
-
+    user = await user_repository.get_by_matricule(db, matricule)
     if user is None:
         raise UnauthorizedError("Identifiants invalides.")
 

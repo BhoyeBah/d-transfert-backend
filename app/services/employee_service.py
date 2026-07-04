@@ -10,12 +10,14 @@ from app.models.user import User
 from app.repositories import role_repository, user_repository
 from app.schemas.employee import EmployeeCreateRequest, EmployeeResponse
 from app.services import audit_service
+from app.utils.reference import generate_employee_matricule
 
 
 async def _to_response(db: AsyncSession, user: User) -> EmployeeResponse:
     permissions = await user_repository.get_effective_permission_codes(db, user)
     return EmployeeResponse(
         id=user.id,
+        matricule=user.matricule,
         full_name=user.full_name,
         phone=user.phone,
         is_active=user.is_active,
@@ -34,9 +36,25 @@ async def create_employee(
     if employee_role is None:
         raise ConflictError("Rôle employé introuvable, seed de rôles manquant.")
 
+    owner = await user_repository.get_owner_by_company(db, company_id)
+    if owner is None:
+        raise ConflictError("Entreprise introuvable ou sans owner.")
+
+    next_sequence = await user_repository.count_employees_by_company(db, company_id) + 1
+    matricule = None
+    for _ in range(10):
+        candidate = generate_employee_matricule(owner.matricule, next_sequence)
+        if await user_repository.get_by_matricule(db, candidate) is None:
+            matricule = candidate
+            break
+        next_sequence += 1
+    if matricule is None:
+        raise ConflictError("Impossible de générer un matricule employé unique, réessayez.")
+
     user = User(
         company_id=company_id,
         role_id=employee_role.id,
+        matricule=matricule,
         full_name=payload.full_name,
         phone=payload.phone,
         password_hash=hash_password(payload.password),

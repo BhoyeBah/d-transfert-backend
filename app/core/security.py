@@ -27,11 +27,23 @@ class TokenType(StrEnum):
     REFRESH = "refresh"
 
 
-def _create_token(subject: str, company_id: str | None, token_type: TokenType, expires_delta: timedelta) -> str:
+def _create_token(
+    subject: str,
+    company_id: str | None,
+    token_type: TokenType,
+    expires_delta: timedelta,
+    *,
+    matricule: str | None = None,
+    is_owner: bool = False,
+    is_super_admin: bool = False,
+) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": subject,
         "company_id": company_id,
+        "matricule": matricule,
+        "is_owner": is_owner,
+        "is_super_admin": is_super_admin,
         "type": token_type.value,
         "iat": now,
         "exp": now + expires_delta,
@@ -40,15 +52,41 @@ def _create_token(subject: str, company_id: str | None, token_type: TokenType, e
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(user_id: str, company_id: str | None) -> str:
+def create_access_token(
+    user_id: str,
+    company_id: str | None,
+    *,
+    matricule: str | None = None,
+    is_owner: bool = False,
+    is_super_admin: bool = False,
+) -> str:
     return _create_token(
-        user_id, company_id, TokenType.ACCESS, timedelta(minutes=settings.access_token_expire_minutes)
+        user_id,
+        company_id,
+        TokenType.ACCESS,
+        timedelta(minutes=settings.access_token_expire_minutes),
+        matricule=matricule,
+        is_owner=is_owner,
+        is_super_admin=is_super_admin,
     )
 
 
-def create_refresh_token(user_id: str, company_id: str | None) -> str:
+def create_refresh_token(
+    user_id: str,
+    company_id: str | None,
+    *,
+    matricule: str | None = None,
+    is_owner: bool = False,
+    is_super_admin: bool = False,
+) -> str:
     return _create_token(
-        user_id, company_id, TokenType.REFRESH, timedelta(days=settings.refresh_token_expire_days)
+        user_id,
+        company_id,
+        TokenType.REFRESH,
+        timedelta(days=settings.refresh_token_expire_days),
+        matricule=matricule,
+        is_owner=is_owner,
+        is_super_admin=is_super_admin,
     )
 
 

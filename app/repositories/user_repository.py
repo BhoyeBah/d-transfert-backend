@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.role import OverrideEffect, Permission, RolePermission, UserPermissionOverride
@@ -36,6 +36,11 @@ async def get_by_id(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     return await session.get(User, user_id)
 
 
+async def get_by_matricule(session: AsyncSession, matricule: str) -> User | None:
+    result = await session.execute(select(User).where(User.matricule == matricule))
+    return result.scalar_one_or_none()
+
+
 async def get_by_company_and_phone(
     session: AsyncSession, company_id: uuid.UUID, phone: str
 ) -> User | None:
@@ -57,6 +62,15 @@ async def list_by_company(session: AsyncSession, company_id: uuid.UUID) -> list[
         select(User).where(User.company_id == company_id, User.is_owner.is_(False))
     )
     return list(result.scalars().all())
+
+
+async def count_employees_by_company(session: AsyncSession, company_id: uuid.UUID) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(User).where(
+            User.company_id == company_id, User.is_owner.is_(False)
+        )
+    )
+    return int(result.scalar_one())
 
 
 async def get_effective_permission_codes(session: AsyncSession, user: User) -> frozenset[str]:

@@ -10,7 +10,10 @@ from app.models.base import Base, TimestampMixin, UUIDPKMixin
 
 class User(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "users"
-    __table_args__ = (UniqueConstraint("company_id", "phone", name="uq_user_company_phone"),)
+    __table_args__ = (
+        UniqueConstraint("company_id", "phone", name="uq_user_company_phone"),
+        UniqueConstraint("matricule", name="uq_user_matricule"),
+    )
 
     company_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=True, index=True
@@ -18,6 +21,7 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("roles.id", ondelete="RESTRICT"), nullable=True
     )
+    matricule: Mapped[str] = mapped_column(String(32), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)

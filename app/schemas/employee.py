@@ -30,6 +30,7 @@ class EmployeeStatusUpdateRequest(BaseModel):
 
 class EmployeeResponse(BaseModel):
     id: uuid.UUID
+    matricule: str
     full_name: str
     phone: str
     is_active: bool

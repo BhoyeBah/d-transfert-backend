@@ -36,6 +36,7 @@ async def test_owner_can_create_employee_with_permissions(client):
     )
     assert response.status_code == 201
     body = response.json()
+    assert body["matricule"].startswith("DT-")
     assert body["permissions"] == ["wallet.manage"]
     assert body["is_active"] is True
 
@@ -55,7 +56,7 @@ async def test_duplicate_phone_within_company_rejected(client):
 
 async def test_employee_login_and_permission_enforcement(client):
     matricule, owner_token = await _register_and_login_owner(client)
-    await client.post(
+    create_response = await client.post(
         "/api/v1/employees",
         json={
             "full_name": "Employé Un",
@@ -65,10 +66,10 @@ async def test_employee_login_and_permission_enforcement(client):
         },
         headers=_auth_headers(owner_token),
     )
+    employee_matricule = create_response.json()["matricule"]
 
     login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"matricule": matricule, "phone": "+224611111111", "password": "EmployeePass123!"},
+        "/api/v1/auth/login", json={"matricule": employee_matricule, "password": "EmployeePass123!"}
     )
     assert login_response.status_code == 200
     employee_token = login_response.json()["access_token"]
@@ -98,10 +99,10 @@ async def test_owner_grant_permission_enables_employee_access(client):
         json={"grant": ["employee.manage"], "revoke": []},
         headers=_auth_headers(owner_token),
     )
+    employee_matricule = create_response.json()["matricule"]
 
     login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"matricule": matricule, "phone": "+224611111111", "password": "EmployeePass123!"},
+        "/api/v1/auth/login", json={"matricule": employee_matricule, "password": "EmployeePass123!"}
     )
     employee_token = login_response.json()["access_token"]
 
@@ -130,10 +131,10 @@ async def test_owner_can_deactivate_employee_and_login_fails(client):
     )
     assert status_response.status_code == 200
     assert status_response.json()["is_active"] is False
+    employee_matricule = create_response.json()["matricule"]
 
     login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"matricule": matricule, "phone": "+224611111111", "password": "EmployeePass123!"},
+        "/api/v1/auth/login", json={"matricule": employee_matricule, "password": "EmployeePass123!"}
     )
     assert login_response.status_code == 401
 

@@ -47,8 +47,7 @@ async def test_owner_login_success(client):
     matricule = register_response.json()["registration_code"]
 
     response = await client.post(
-        "/api/v1/auth/login",
-        json={"matricule": matricule, "password": "SuperSecret123!"},
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
     )
     assert response.status_code == 200
     body = response.json()
@@ -60,9 +59,7 @@ async def test_owner_login_wrong_password_fails(client):
     register_response = await client.post("/api/v1/auth/register", json=_register_payload())
     matricule = register_response.json()["registration_code"]
 
-    response = await client.post(
-        "/api/v1/auth/login", json={"matricule": matricule, "password": "WrongPassword!"}
-    )
+    response = await client.post("/api/v1/auth/login", json={"matricule": matricule, "password": "WrongPassword!"})
     assert response.status_code == 401
 
 
@@ -71,13 +68,9 @@ async def test_login_lockout_after_max_failed_attempts(client):
     matricule = register_response.json()["registration_code"]
 
     for _ in range(5):
-        await client.post(
-            "/api/v1/auth/login", json={"matricule": matricule, "password": "WrongPassword!"}
-        )
+        await client.post("/api/v1/auth/login", json={"matricule": matricule, "password": "WrongPassword!"})
 
-    response = await client.post(
-        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
-    )
+    response = await client.post("/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"})
     assert response.status_code == 401
     assert "verrouillé" in response.json()["detail"]
 
@@ -100,9 +93,7 @@ async def test_password_reset_flow(client, caplog):
     matricule = register_response.json()["registration_code"]
 
     with caplog.at_level("INFO", logger="dtransfert.auth"):
-        forgot_response = await client.post(
-            "/api/v1/auth/forgot-password", json={"matricule": matricule}
-        )
+        forgot_response = await client.post("/api/v1/auth/forgot-password", json={"matricule": matricule})
     assert forgot_response.status_code == 204
 
     match = re.search(r"OTP de réinitialisation généré pour user_id=.*: (\d{6})", caplog.text)

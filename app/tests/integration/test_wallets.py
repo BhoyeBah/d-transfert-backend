@@ -108,12 +108,7 @@ async def test_update_and_deactivate_wallet(client):
 
 async def test_employee_without_wallet_permission_forbidden(client):
     owner_token = await _register_and_login_owner(client)
-    matricule_response = await client.get(
-        "/api/v1/companies/me", headers=_auth_headers(owner_token)
-    )
-    matricule = matricule_response.json()["registration_code"]
-
-    await client.post(
+    create_response = await client.post(
         "/api/v1/employees",
         json={
             "full_name": "Employé Un",
@@ -123,9 +118,9 @@ async def test_employee_without_wallet_permission_forbidden(client):
         },
         headers=_auth_headers(owner_token),
     )
+    employee_matricule = create_response.json()["matricule"]
     login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"matricule": matricule, "phone": "+224711111111", "password": "EmployeePass123!"},
+        "/api/v1/auth/login", json={"matricule": employee_matricule, "password": "EmployeePass123!"}
     )
     employee_token = login_response.json()["access_token"]
 

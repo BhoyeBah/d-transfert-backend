@@ -25,6 +25,7 @@ async def _seed_company_and_user(db_session):
 
     user = User(
         company_id=company.id,
+        matricule=company.registration_code,
         full_name="Owner Test",
         phone=company.phone,
         password_hash=hash_password("Secret123!"),

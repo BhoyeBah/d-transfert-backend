@@ -13,6 +13,10 @@ def generate_company_registration_code() -> str:
     return generate_reference("DT")
 
 
+def generate_employee_matricule(company_registration_code: str, sequence: int) -> str:
+    return f"{company_registration_code}-EMP{sequence:03d}"
+
+
 def generate_operation_reference() -> str:
     return generate_reference("OP")
 

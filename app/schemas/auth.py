@@ -41,7 +41,6 @@ class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     matricule: str = Field(min_length=1)
-    phone: str | None = Field(default=None, description="Requis pour la connexion employé.")
     password: str = Field(min_length=1)
 
 
@@ -61,14 +60,12 @@ class ForgotPasswordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     matricule: str
-    phone: str | None = None
 
 
 class ResetPasswordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     matricule: str
-    phone: str | None = None
     otp_code: str = Field(min_length=4, max_length=12)
     new_password: str = Field(min_length=8, max_length=128)
     new_password_confirmation: str = Field(min_length=8, max_length=128)

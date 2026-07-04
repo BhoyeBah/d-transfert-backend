@@ -23,9 +23,7 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
-    access_token, refresh_token = await auth_service.login(
-        db, payload.matricule, payload.phone, payload.password
-    )
+    access_token, refresh_token = await auth_service.login(db, payload.matricule, payload.password)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -37,11 +35,9 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
 
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
 async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)) -> None:
-    await auth_service.request_password_reset(db, payload.matricule, payload.phone)
+    await auth_service.request_password_reset(db, payload.matricule)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)) -> None:
-    await auth_service.reset_password(
-        db, payload.matricule, payload.phone, payload.otp_code, payload.new_password
-    )
+    await auth_service.reset_password(db, payload.matricule, payload.otp_code, payload.new_password)

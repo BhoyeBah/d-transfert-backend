@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.exceptions import PermissionDeniedError, UnauthorizedError
 from app.core.security import TokenType, decode_token
 from app.models.company import CompanyStatus
+from app.core.permission_codes import PermissionCode
 from app.repositories import company_repository, user_repository
 
 
@@ -46,7 +47,7 @@ async def get_current_user(
             raise UnauthorizedError("Entreprise suspendue.")
 
     if user.is_owner or user.is_super_admin:
-        permissions: frozenset[str] = frozenset()
+        permissions: frozenset[str] = frozenset(code.value for code in PermissionCode)
     else:
         permissions = await user_repository.get_effective_permission_codes(db, user)
 

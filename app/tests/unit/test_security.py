@@ -19,14 +19,29 @@ def test_password_hash_and_verify():
 
 
 def test_access_and_refresh_tokens_round_trip():
-    access = create_access_token("user-1", "company-1")
-    refresh = create_refresh_token("user-1", "company-1")
+    access = create_access_token(
+        "user-1",
+        "company-1",
+        matricule="DT-000001",
+        is_owner=True,
+        is_super_admin=False,
+    )
+    refresh = create_refresh_token(
+        "user-1",
+        "company-1",
+        matricule="DT-000001",
+        is_owner=True,
+        is_super_admin=False,
+    )
 
     access_payload = decode_token(access, TokenType.ACCESS)
     refresh_payload = decode_token(refresh, TokenType.REFRESH)
 
     assert access_payload["sub"] == "user-1"
     assert access_payload["company_id"] == "company-1"
+    assert access_payload["matricule"] == "DT-000001"
+    assert access_payload["is_owner"] is True
+    assert access_payload["is_super_admin"] is False
     assert refresh_payload["type"] == "refresh"
 
 
