@@ -2,9 +2,12 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.permissions import CurrentUser, get_current_user
+from app.repositories import user_repository
 from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
+    MeResponse,
     RefreshRequest,
     RegisterRequest,
     RegisterResponse,
@@ -41,3 +44,21 @@ async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Dep
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)) -> None:
     await auth_service.reset_password(db, payload.matricule, payload.otp_code, payload.new_password)
+
+
+@router.get("/me", response_model=MeResponse)
+async def me(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> MeResponse:
+    user = await user_repository.get_by_id(db, current_user.id)
+    assert user is not None
+    return MeResponse(
+        id=current_user.id,
+        company_id=current_user.company_id,
+        matricule=user.matricule,
+        full_name=user.full_name,
+        is_owner=current_user.is_owner,
+        is_super_admin=current_user.is_super_admin,
+        permissions=sorted(current_user.permissions),
+    )

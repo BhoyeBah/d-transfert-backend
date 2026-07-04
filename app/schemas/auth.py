@@ -5,6 +5,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.utils.currency import is_supported_currency
 
 
+class MeResponse(BaseModel):
+    id: uuid.UUID
+    company_id: uuid.UUID | None
+    matricule: str
+    full_name: str
+    is_owner: bool
+    is_super_admin: bool
+    permissions: list[str]
+
+
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
