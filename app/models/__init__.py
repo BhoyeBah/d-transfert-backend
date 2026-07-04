@@ -8,6 +8,7 @@ from app.models.entry_line import EntryLine
 from app.models.national_operation import NationalOperation, NationalOperationStatus, NationalOperationType
 from app.models.national_operation_line import NationalOperationLine
 from app.models.password_reset_otp import PasswordResetOTP
+from app.models.payment import Payment, PaymentStatus, PaymentStatusHistory
 from app.models.private_sending_rate import PrivateSendingRate
 from app.models.role import OverrideEffect, Permission, Role, RolePermission, UserPermissionOverride
 from app.models.transfer import SendMode, Transfer, TransferStatus, TransferStatusHistory
@@ -34,6 +35,9 @@ __all__ = [
     "NationalOperationType",
     "NationalOperationLine",
     "PasswordResetOTP",
+    "Payment",
+    "PaymentStatus",
+    "PaymentStatusHistory",
     "PrivateSendingRate",
     "Permission",
     "Role",

@@ -8,6 +8,7 @@ from app.routers import (
     employees,
     entries,
     national_operations,
+    payments,
     private_rates,
     transfers,
     wallets,
@@ -26,6 +27,7 @@ app.include_router(collaborations.router)
 app.include_router(private_rates.router)
 app.include_router(entries.router)
 app.include_router(transfers.router)
+app.include_router(payments.router)
 
 
 @app.get("/health")

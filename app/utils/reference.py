@@ -23,3 +23,7 @@ def generate_entry_reference() -> str:
 
 def generate_transfer_reference() -> str:
     return generate_reference("TR")
+
+
+def generate_payment_reference() -> str:
+    return generate_reference("PA")
