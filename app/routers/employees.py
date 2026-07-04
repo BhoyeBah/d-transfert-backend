@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
-from app.core.permissions import get_company_scope, require_permission
+from app.core.permissions import CurrentUser, get_company_scope, require_permission
 from app.schemas.employee import (
     EmployeeCreateRequest,
     EmployeePermissionsUpdateRequest,
@@ -16,12 +16,14 @@ from app.services import employee_service
 
 router = APIRouter(prefix="/api/v1/employees", tags=["employees"])
 
+_require_manage = require_permission(PermissionCode.EMPLOYEE_MANAGE)
+
 
 @router.get("", response_model=list[EmployeeResponse])
 async def list_employees(
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user=Depends(require_permission(PermissionCode.EMPLOYEE_MANAGE)),
+    _current_user: CurrentUser = Depends(_require_manage),
 ) -> list[EmployeeResponse]:
     return await employee_service.list_employees(db, company_id)
 
@@ -31,9 +33,9 @@ async def create_employee(
     payload: EmployeeCreateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user=Depends(require_permission(PermissionCode.EMPLOYEE_MANAGE)),
+    current_user: CurrentUser = Depends(_require_manage),
 ) -> EmployeeResponse:
-    return await employee_service.create_employee(db, company_id, payload)
+    return await employee_service.create_employee(db, company_id, current_user.id, payload)
 
 
 @router.patch("/{employee_id}/permissions", response_model=EmployeeResponse)
@@ -42,10 +44,10 @@ async def update_employee_permissions(
     payload: EmployeePermissionsUpdateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user=Depends(require_permission(PermissionCode.EMPLOYEE_MANAGE)),
+    current_user: CurrentUser = Depends(_require_manage),
 ) -> EmployeeResponse:
     return await employee_service.update_permissions(
-        db, company_id, employee_id, payload.grant, payload.revoke
+        db, company_id, current_user.id, employee_id, payload.grant, payload.revoke
     )
 
 
@@ -55,6 +57,8 @@ async def update_employee_status(
     payload: EmployeeStatusUpdateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user=Depends(require_permission(PermissionCode.EMPLOYEE_MANAGE)),
+    current_user: CurrentUser = Depends(_require_manage),
 ) -> EmployeeResponse:
-    return await employee_service.set_active_status(db, company_id, employee_id, payload.is_active)
+    return await employee_service.set_active_status(
+        db, company_id, current_user.id, employee_id, payload.is_active
+    )

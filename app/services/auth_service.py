@@ -18,6 +18,7 @@ from app.models.company import Company, CompanyStatus
 from app.models.user import User
 from app.repositories import company_repository, password_reset_otp_repository, user_repository
 from app.schemas.auth import RegisterRequest, RegisterResponse
+from app.services import audit_service
 from app.utils.reference import generate_company_registration_code
 
 logger = logging.getLogger("dtransfert.auth")
@@ -112,6 +113,7 @@ async def login(db: AsyncSession, matricule: str, phone: str | None, password: s
     user.failed_login_attempts = 0
     user.locked_until = None
     user.last_login_at = datetime.now(timezone.utc)
+    await audit_service.log_action(db, user.company_id, user.id, "login", "user", user.id)
     await db.commit()
 
     company_id = str(user.company_id) if user.company_id else None

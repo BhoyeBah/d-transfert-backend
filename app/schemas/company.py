@@ -21,3 +21,7 @@ class CompanyPublicLookupResponse(BaseModel):
     phone: str
     address: str | None
     status: CompanyStatus
+
+
+class AdminCompanyStatusUpdateRequest(BaseModel):
+    status: CompanyStatus

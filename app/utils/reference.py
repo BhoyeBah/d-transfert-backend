@@ -15,3 +15,19 @@ def generate_company_registration_code() -> str:
 
 def generate_operation_reference() -> str:
     return generate_reference("OP")
+
+
+def generate_entry_reference() -> str:
+    return generate_reference("EN")
+
+
+def generate_transfer_reference() -> str:
+    return generate_reference("TR")
+
+
+def generate_payment_reference() -> str:
+    return generate_reference("PA")
+
+
+def generate_supplier_movement_reference() -> str:
+    return generate_reference("SR")

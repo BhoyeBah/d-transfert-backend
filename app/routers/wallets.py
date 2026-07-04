@@ -64,9 +64,9 @@ async def update_wallet_status(
     payload: WalletStatusUpdateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
+    current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
 ) -> WalletResponse:
-    return await wallet_service.set_wallet_status(db, company_id, wallet_id, payload.status)
+    return await wallet_service.set_wallet_status(db, company_id, current_user.id, wallet_id, payload.status)
 
 
 @router.get("/{wallet_id}/movements", response_model=list[WalletMovementResponse])

@@ -1,1 +1,133 @@
-# d-transfert
+# D-Transfert — API Backend
+
+API backend de D-Transfert : gestion multi-entreprises des wallets, opérations nationales
+(dépôt/retrait/échange/rééquilibrage sans frais), collaborations inter-entreprises avec taux
+collaboratifs et privés, envois internationaux, paiements collaborateurs, entrées et leur
+fusion/transformation, clients et fournisseurs avec suivi de dettes, dashboard, rapports,
+notifications et audit logs.
+
+Stack : FastAPI + SQLAlchemy 2 (async) + Alembic + PostgreSQL + Pydantic v2 + JWT (accès/refresh)
++ Argon2 + RBAC par permissions.
+
+## Prérequis
+
+* Python 3.11+
+* PostgreSQL 16 (ou `docker-compose.yml` fourni)
+* [Poetry](https://python-poetry.org/) ou `pip` (le projet est un paquet `pyproject.toml` standard)
+
+## Installation locale
+
+```bash
+git clone <url-du-repo>
+cd d-transfert
+poetry install --with dev
+# ou : pip install -e ".[dev]"
+```
+
+## Base de données PostgreSQL
+
+Un `docker-compose.yml` fournit une instance PostgreSQL prête à l'emploi pour le développement :
+
+```bash
+docker compose up -d
+```
+
+Cela démarre PostgreSQL sur `localhost:5432` avec l'utilisateur/mot de passe/base
+`dtransfert`/`dtransfert`/`dtransfert` (voir `docker-compose.yml`).
+
+Pour les tests, une base **séparée** est utilisée (`dtransfert_test`, voir
+`app/tests/conftest.py`) afin de ne jamais toucher aux données de développement. Créez-la une
+fois :
+
+```bash
+psql "postgresql://dtransfert:dtransfert@localhost:5432/postgres" -c "CREATE DATABASE dtransfert_test;"
+```
+
+## Variables d'environnement
+
+Copiez `.env.example` vers `.env` et ajustez si besoin :
+
+| Variable | Description | Exemple |
+|---|---|---|
+| `ENVIRONMENT` | Environnement d'exécution (`development`/`production`) | `development` |
+| `DATABASE_URL` | URL de connexion PostgreSQL asyncpg (base de développement/production, **pas** la base de test) | `postgresql+asyncpg://dtransfert:dtransfert@localhost:5432/dtransfert` |
+| `JWT_SECRET_KEY` | Clé de signature des JWT — **à changer impérativement en production** (32 octets minimum) | `dev-only-change-me-32-bytes-minimum-secret-key` |
+| `JWT_ALGORITHM` | Algorithme de signature JWT | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Durée de vie du token d'accès | `30` |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Durée de vie du token de rafraîchissement | `14` |
+
+```bash
+cp .env.example .env
+```
+
+## Migrations Alembic
+
+Les migrations créent le schéma complet (29 tables), seedent les 15 permissions et les 3 rôles
+par défaut (`owner`, `employee`, `super_admin`). Les seeds sont des constantes littérales dans
+chaque migration (pas d'import du code vivant), afin qu'une base vierge rejouée aujourd'hui ou
+dans un an obtienne exactement le même résultat historique.
+
+```bash
+# Appliquer toutes les migrations sur une base vierge
+poetry run alembic upgrade head
+
+# Vérifier qu'il n'y a aucun drift entre les modèles et les migrations
+poetry run alembic check
+
+# Revenir à une base vide (utile pour retester une installation from scratch)
+poetry run alembic downgrade base
+
+# Créer une nouvelle migration après modification des modèles
+poetry run alembic revision --autogenerate -m "description"
+```
+
+## Lancer l'API
+
+```bash
+poetry run uvicorn app.main:app --reload --port 8000
+```
+
+* Swagger UI : http://localhost:8000/docs
+* ReDoc : http://localhost:8000/redoc
+* OpenAPI JSON : http://localhost:8000/openapi.json
+* Health check : http://localhost:8000/health
+
+Toutes les routes métier sont préfixées par `/api/v1`. L'authentification se fait via
+`Authorization: Bearer <access_token>`, obtenu via `POST /api/v1/auth/login` (matricule
+d'entreprise pour l'Owner, matricule + téléphone pour un employé).
+
+## Comptes de test
+
+Il n'y a pas de compte pré-seedé : chaque entreprise se crée elle-même via
+`POST /api/v1/auth/register` (voir `/docs` pour le payload exact), ce qui crée automatiquement
+son compte Owner. Un compte Super Admin de plateforme ne peut **pas** être créé via l'inscription
+publique ; il doit être inséré directement en base (voir
+`app/tests/integration/test_admin.py::_create_super_admin_token` pour un exemple).
+
+## Tests
+
+```bash
+# Suite complète (contre la base dtransfert_test réelle, aucun mock de DB)
+poetry run pytest -q
+
+# Un seul fichier
+poetry run pytest -q app/tests/integration/test_transfers.py
+```
+
+Les tests d'intégration tournent contre un vrai PostgreSQL et s'exécutent chacun dans une
+transaction annulée en fin de test (isolation par SAVEPOINT), donc aucune donnée ne persiste
+entre deux tests.
+
+## Structure du projet
+
+```
+app/
+  core/        configuration, sécurité (JWT/Argon2), permissions RBAC, gestion des erreurs
+  models/      modèles SQLAlchemy (29 tables)
+  repositories/ accès DB par entité, toujours scopé par company_id
+  services/    logique métier et règles d'intégrité financière
+  schemas/     schémas Pydantic (requêtes/réponses)
+  routers/     endpoints FastAPI, un fichier par domaine métier
+  tests/       tests d'intégration (via HTTP réel) et unitaires
+alembic/       migrations, une par phase fonctionnelle
+```

@@ -8,6 +8,7 @@ from app.models.wallet import Wallet, WalletStatus
 from app.models.wallet_movement import MovementDirection, WalletMovement
 from app.repositories import wallet_movement_repository, wallet_repository
 from app.schemas.wallet import WalletCreateRequest, WalletUpdateRequest
+from app.services import audit_service
 
 _CENTS = Decimal("0.01")
 
@@ -89,6 +90,7 @@ async def create_wallet(
             note="Solde initial",
         )
 
+    await audit_service.log_action(session, company_id, created_by_id, "wallet.create", "wallet", wallet.id)
     await session.commit()
     return wallet
 
@@ -121,10 +123,18 @@ async def update_wallet(
 
 
 async def set_wallet_status(
-    session: AsyncSession, company_id: uuid.UUID, wallet_id: uuid.UUID, status: WalletStatus
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    changed_by_user_id: uuid.UUID,
+    wallet_id: uuid.UUID,
+    status: WalletStatus,
 ) -> Wallet:
     wallet = await get_wallet(session, company_id, wallet_id)
     wallet.status = status
+    await audit_service.log_action(
+        session, company_id, changed_by_user_id, "wallet.status_change", "wallet", wallet.id,
+        note=f"status={status.value}",
+    )
     await session.commit()
     return wallet
 

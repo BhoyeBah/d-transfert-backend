@@ -11,7 +11,29 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from app.core.permission_codes import PERMISSION_DESCRIPTIONS, RoleCode
+# Les codes de permissions/rôles sont figés ici en dur (et non importés depuis
+# app.core.permission_codes) : ce module vit et grossit au fil des phases, et une
+# migration ne doit jamais dépendre d'un état applicatif qui changera après coup.
+PERMISSIONS_SEED = [
+    ("dashboard.view", "Voir le dashboard"),
+    ("entry.manage", "Gérer les entrées"),
+    ("transfer.create", "Créer un envoi"),
+    ("payment.create", "Créer un paiement"),
+    ("operation.validate", "Valider une opération"),
+    ("wallet.manage", "Gérer les wallets"),
+    ("supplier.manage", "Gérer les fournisseurs"),
+    ("report.view", "Voir les rapports"),
+    ("report.export", "Exporter les données"),
+    ("rate.private.view", "Voir les taux privés"),
+    ("rate.private.manage", "Modifier les taux privés"),
+    ("employee.manage", "Gérer les employés"),
+]
+
+ROLES_SEED = [
+    ("owner", "Owner"),
+    ("employee", "Employé"),
+    ("super_admin", "Super Admin"),
+]
 
 
 # revision identifiers, used by Alembic.
@@ -122,8 +144,8 @@ def upgrade() -> None:
     op.bulk_insert(
         permissions_table,
         [
-            {"id": uuid.uuid4(), "code": code.value, "description": description}
-            for code, description in PERMISSION_DESCRIPTIONS.items()
+            {"id": uuid.uuid4(), "code": code, "description": description}
+            for code, description in PERMISSIONS_SEED
         ],
     )
 
@@ -137,14 +159,8 @@ def upgrade() -> None:
     op.bulk_insert(
         roles_table,
         [
-            {"id": uuid.uuid4(), "code": RoleCode.OWNER.value, "name": "Owner", "is_system": True},
-            {"id": uuid.uuid4(), "code": RoleCode.EMPLOYEE.value, "name": "Employé", "is_system": True},
-            {
-                "id": uuid.uuid4(),
-                "code": RoleCode.SUPER_ADMIN.value,
-                "name": "Super Admin",
-                "is_system": True,
-            },
+            {"id": uuid.uuid4(), "code": code, "name": name, "is_system": True}
+            for code, name in ROLES_SEED
         ],
     )
 

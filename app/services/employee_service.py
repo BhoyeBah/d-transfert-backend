@@ -9,6 +9,7 @@ from app.models.role import OverrideEffect
 from app.models.user import User
 from app.repositories import role_repository, user_repository
 from app.schemas.employee import EmployeeCreateRequest, EmployeeResponse
+from app.services import audit_service
 
 
 async def _to_response(db: AsyncSession, user: User) -> EmployeeResponse:
@@ -24,7 +25,7 @@ async def _to_response(db: AsyncSession, user: User) -> EmployeeResponse:
 
 
 async def create_employee(
-    db: AsyncSession, company_id: uuid.UUID, payload: EmployeeCreateRequest
+    db: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, payload: EmployeeCreateRequest
 ) -> EmployeeResponse:
     if await user_repository.get_by_company_and_phone(db, company_id, payload.phone) is not None:
         raise ConflictError("Ce numéro de téléphone est déjà utilisé dans cette entreprise.")
@@ -51,6 +52,7 @@ async def create_employee(
             continue
         await user_repository.set_permission_override(db, user.id, permission.id, OverrideEffect.GRANT)
 
+    await audit_service.log_action(db, company_id, acted_by_user_id, "employee.create", "user", user.id)
     await db.commit()
     return await _to_response(db, user)
 
@@ -63,6 +65,7 @@ async def list_employees(db: AsyncSession, company_id: uuid.UUID) -> list[Employ
 async def update_permissions(
     db: AsyncSession,
     company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
     employee_id: uuid.UUID,
     grant: list[PermissionCode],
     revoke: list[PermissionCode],
@@ -83,17 +86,30 @@ async def update_permissions(
             continue
         await user_repository.set_permission_override(db, user.id, permission.id, OverrideEffect.REVOKE)
 
+    await audit_service.log_action(
+        db,
+        company_id,
+        acted_by_user_id,
+        "employee.permission_change",
+        "user",
+        user.id,
+        note=f"grant={[c.value for c in grant]} revoke={[c.value for c in revoke]}",
+    )
     await db.commit()
     return await _to_response(db, user)
 
 
 async def set_active_status(
-    db: AsyncSession, company_id: uuid.UUID, employee_id: uuid.UUID, is_active: bool
+    db: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, employee_id: uuid.UUID, is_active: bool
 ) -> EmployeeResponse:
     user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
     if user is None:
         raise NotFoundError("Employé introuvable.")
 
     user.is_active = is_active
+    await audit_service.log_action(
+        db, company_id, acted_by_user_id, "employee.status_change", "user", user.id,
+        note=f"is_active={is_active}",
+    )
     await db.commit()
     return await _to_response(db, user)

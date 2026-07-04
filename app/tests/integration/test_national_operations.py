@@ -63,6 +63,38 @@ async def test_deposit_balances_two_wallets(client):
     assert wave_wallet.json()["balance"] == "10000.00"
 
 
+async def test_withdrawal_no_fee_balances_two_wallets(client):
+    owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="0")
+    wave_id = await _create_wallet(client, owner_token, "WAVE", initial_balance="20000")
+
+    response = await client.post(
+        "/api/v1/national-operations/withdrawals",
+        json={
+            "note": "Retrait client",
+            "lines": [
+                {"wallet_id": wave_id, "amount_in": "0", "amount_out": "10000", "currency": "XOF"},
+                {"wallet_id": cash_id, "amount_in": "10000", "amount_out": "0", "currency": "XOF"},
+            ],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["type"] == "withdrawal"
+    assert body["status"] == "validated"
+    # No fee field exists anywhere on the operation or its lines: the customer-facing amount
+    # withdrawn from Wave (10000) exactly equals the cash handed out (10000).
+    for line in body["lines"]:
+        assert set(line.keys()) >= {"amount_in", "amount_out", "currency"}
+        assert "fee_amount" not in line
+
+    cash_wallet = await client.get(f"/api/v1/wallets/{cash_id}", headers=_auth_headers(owner_token))
+    wave_wallet = await client.get(f"/api/v1/wallets/{wave_id}", headers=_auth_headers(owner_token))
+    assert cash_wallet.json()["balance"] == "10000.00"
+    assert wave_wallet.json()["balance"] == "10000.00"
+
+
 async def test_multi_wallet_rebalance(client):
     owner_token = await _register_and_login_owner(client)
     wave_id = await _create_wallet(client, owner_token, "WAVE")
