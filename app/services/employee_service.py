@@ -1,0 +1,99 @@
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import ConflictError, NotFoundError
+from app.core.permission_codes import PermissionCode, RoleCode
+from app.core.security import hash_password
+from app.models.role import OverrideEffect
+from app.models.user import User
+from app.repositories import role_repository, user_repository
+from app.schemas.employee import EmployeeCreateRequest, EmployeeResponse
+
+
+async def _to_response(db: AsyncSession, user: User) -> EmployeeResponse:
+    permissions = await user_repository.get_effective_permission_codes(db, user)
+    return EmployeeResponse(
+        id=user.id,
+        full_name=user.full_name,
+        phone=user.phone,
+        is_active=user.is_active,
+        permissions=sorted(PermissionCode(code) for code in permissions),
+        created_at=user.created_at,
+    )
+
+
+async def create_employee(
+    db: AsyncSession, company_id: uuid.UUID, payload: EmployeeCreateRequest
+) -> EmployeeResponse:
+    if await user_repository.get_by_company_and_phone(db, company_id, payload.phone) is not None:
+        raise ConflictError("Ce numéro de téléphone est déjà utilisé dans cette entreprise.")
+
+    employee_role = await role_repository.get_role_by_code(db, RoleCode.EMPLOYEE)
+    if employee_role is None:
+        raise ConflictError("Rôle employé introuvable, seed de rôles manquant.")
+
+    user = User(
+        company_id=company_id,
+        role_id=employee_role.id,
+        full_name=payload.full_name,
+        phone=payload.phone,
+        password_hash=hash_password(payload.password),
+        is_owner=False,
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+
+    for code in payload.permissions:
+        permission = await role_repository.get_permission_by_code(db, code)
+        if permission is None:
+            continue
+        await user_repository.set_permission_override(db, user.id, permission.id, OverrideEffect.GRANT)
+
+    await db.commit()
+    return await _to_response(db, user)
+
+
+async def list_employees(db: AsyncSession, company_id: uuid.UUID) -> list[EmployeeResponse]:
+    users = await user_repository.list_by_company(db, company_id)
+    return [await _to_response(db, user) for user in users]
+
+
+async def update_permissions(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    employee_id: uuid.UUID,
+    grant: list[PermissionCode],
+    revoke: list[PermissionCode],
+) -> EmployeeResponse:
+    user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
+    if user is None:
+        raise NotFoundError("Employé introuvable.")
+
+    for code in grant:
+        permission = await role_repository.get_permission_by_code(db, code)
+        if permission is None:
+            continue
+        await user_repository.set_permission_override(db, user.id, permission.id, OverrideEffect.GRANT)
+
+    for code in revoke:
+        permission = await role_repository.get_permission_by_code(db, code)
+        if permission is None:
+            continue
+        await user_repository.set_permission_override(db, user.id, permission.id, OverrideEffect.REVOKE)
+
+    await db.commit()
+    return await _to_response(db, user)
+
+
+async def set_active_status(
+    db: AsyncSession, company_id: uuid.UUID, employee_id: uuid.UUID, is_active: bool
+) -> EmployeeResponse:
+    user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
+    if user is None:
+        raise NotFoundError("Employé introuvable.")
+
+    user.is_active = is_active
+    await db.commit()
+    return await _to_response(db, user)
