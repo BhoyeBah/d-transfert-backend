@@ -1,4 +1,6 @@
 from app.models.base import Base
+from app.models.client import Client
+from app.models.client_balance_movement import ClientBalanceMovement
 from app.models.collaboration import Collaboration, CollaborationRateHistory, CollaborationStatus, RateProposalStatus
 from app.models.collaborator_balance_movement import CollaboratorBalanceMovement
 from app.models.company import Company, CompanyStatus
@@ -11,6 +13,8 @@ from app.models.password_reset_otp import PasswordResetOTP
 from app.models.payment import Payment, PaymentStatus, PaymentStatusHistory
 from app.models.private_sending_rate import PrivateSendingRate
 from app.models.role import OverrideEffect, Permission, Role, RolePermission, UserPermissionOverride
+from app.models.supplier import Supplier
+from app.models.supplier_balance_movement import SupplierBalanceMovement, SupplierMovementType
 from app.models.transfer import SendMode, Transfer, TransferStatus, TransferStatusHistory
 from app.models.user import User
 from app.models.wallet import Wallet, WalletStatus, WalletType
@@ -18,6 +22,8 @@ from app.models.wallet_movement import MovementDirection, WalletMovement
 
 __all__ = [
     "Base",
+    "Client",
+    "ClientBalanceMovement",
     "Collaboration",
     "CollaborationRateHistory",
     "CollaborationStatus",
@@ -43,6 +49,9 @@ __all__ = [
     "Role",
     "RolePermission",
     "SendMode",
+    "Supplier",
+    "SupplierBalanceMovement",
+    "SupplierMovementType",
     "Transfer",
     "TransferStatus",
     "TransferStatusHistory",

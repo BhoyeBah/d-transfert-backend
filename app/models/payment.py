@@ -32,6 +32,10 @@ class Payment(Base, UUIDPKMixin, TimestampMixin):
     wallet_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("wallets.id", ondelete="RESTRICT"), nullable=True
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=True
+    )
+    client_debt_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     reference: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)

@@ -19,6 +19,10 @@ class TransferCreateRequest(BaseModel):
     beneficiary_phone: str = Field(min_length=1, max_length=32)
     send_mode: SendMode
     note: str | None = Field(default=None, max_length=255)
+    client_name: str | None = Field(
+        default=None, max_length=255, description="Utilisé si le montant dépasse le disponible de l'entrée."
+    )
+    client_phone: str | None = Field(default=None, max_length=32)
 
     @field_validator("currency")
     @classmethod
@@ -46,6 +50,8 @@ class TransferResponse(BaseModel):
     company_id: uuid.UUID
     collaboration_id: uuid.UUID
     entry_id: uuid.UUID | None
+    client_id: uuid.UUID | None
+    client_debt_amount: Decimal | None
     amount: Decimal
     currency: str
     beneficiary_name: str | None

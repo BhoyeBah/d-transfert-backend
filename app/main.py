@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.core.exceptions import register_exception_handlers
 from app.routers import (
     auth,
+    clients,
     collaborations,
     companies,
     employees,
@@ -10,6 +11,7 @@ from app.routers import (
     national_operations,
     payments,
     private_rates,
+    suppliers,
     transfers,
     wallets,
 )
@@ -28,6 +30,8 @@ app.include_router(private_rates.router)
 app.include_router(entries.router)
 app.include_router(transfers.router)
 app.include_router(payments.router)
+app.include_router(clients.router)
+app.include_router(suppliers.router)
 
 
 @app.get("/health")

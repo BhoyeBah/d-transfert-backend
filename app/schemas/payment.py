@@ -53,6 +53,8 @@ class PaymentResponse(BaseModel):
     collaboration_id: uuid.UUID
     entry_id: uuid.UUID | None
     wallet_id: uuid.UUID | None
+    client_id: uuid.UUID | None
+    client_debt_amount: Decimal | None
     amount: Decimal
     currency: str
     client_name: str | None

@@ -17,7 +17,7 @@ from app.repositories import (
     wallet_repository,
 )
 from app.schemas.payment import PaymentCreateRequest
-from app.services import entry_service, wallet_service
+from app.services import client_service, entry_service, wallet_service
 from app.utils.reference import generate_payment_reference
 
 REFERENCE_MAX_RETRIES = 5
@@ -93,6 +93,8 @@ async def create_payment(
     entry = None
     lines: list = []
     allocations: list = []
+    allocation_amount = _quantize(payload.amount)
+    client_debt_amount = Decimal("0.00")
     if payload.entry_id is not None:
         entry, lines, allocations = await entry_service.get_entry(session, company_id, payload.entry_id)
         if entry.status not in entry_service.MERGEABLE_STATUSES:
@@ -102,10 +104,16 @@ async def create_payment(
         available = entry_service.available_by_currency(lines, allocations)
         available_for_currency = available.get(payload.currency, Decimal("0"))
         if payload.amount > available_for_currency:
-            raise ConflictError(
-                "Le montant du paiement dépasse le montant disponible de l'entrée "
-                f"({available_for_currency} {payload.currency} disponible)."
-            )
+            client_debt_amount = _quantize(payload.amount - available_for_currency)
+            allocation_amount = _quantize(available_for_currency)
+            if not (payload.client_name and payload.client_phone) and not (
+                entry.client_name and entry.client_phone
+            ):
+                raise ConflictError(
+                    "Le montant du paiement dépasse le montant disponible de l'entrée "
+                    f"({available_for_currency} {payload.currency} disponible) : un client "
+                    "(nom et téléphone) est requis pour enregistrer la dette du manquant."
+                )
 
     wallet = None
     if payload.wallet_id is not None:
@@ -122,12 +130,20 @@ async def create_payment(
         payload.amount, payload.currency, collaboration.currency, collaborative_rate.new_rate
     )
 
+    client = None
+    if client_debt_amount > 0:
+        client_name = payload.client_name or entry.client_name
+        client_phone = payload.client_phone or entry.client_phone
+        client = await client_service.get_or_create_client(session, company_id, client_name, client_phone)
+
     reference = await _generate_unique_reference(session)
     payment = Payment(
         company_id=company_id,
         collaboration_id=collaboration.id,
         entry_id=payload.entry_id,
         wallet_id=payload.wallet_id,
+        client_id=client.id if client else None,
+        client_debt_amount=client_debt_amount if client_debt_amount > 0 else None,
         reference=reference,
         amount=_quantize(payload.amount),
         currency=payload.currency,
@@ -142,17 +158,28 @@ async def create_payment(
     session.add(payment)
     await session.flush()
 
-    if entry is not None:
+    if entry is not None and allocation_amount > 0:
         allocation = EntryAllocation(
             entry_id=entry.id,
             target_type=EntryAllocationTargetType.PAYMENT,
             target_id=payment.id,
             currency=payload.currency,
-            amount_allocated=_quantize(payload.amount),
+            amount_allocated=allocation_amount,
         )
         session.add(allocation)
         await session.flush()
         entry.status = entry_service.recompute_status(lines, [*allocations, allocation])
+
+    if client is not None:
+        await client_service.apply_balance_delta(
+            session,
+            client,
+            client_debt_amount,
+            source_type="payment",
+            source_id=payment.id,
+            created_by_id=created_by_id,
+            note=f"Manquant sur le paiement {reference}",
+        )
 
     history = PaymentStatusHistory(
         payment_id=payment.id, old_status=None, new_status=PaymentStatus.PENDING, company_id=company_id

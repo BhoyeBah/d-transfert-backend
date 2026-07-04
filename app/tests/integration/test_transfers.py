@@ -171,7 +171,7 @@ async def test_create_transfer_from_entry_full_allocation(client):
     assert entry_after.json()["available_by_currency"] == {"GNF": "0.00"}
 
 
-async def test_transfer_exceeding_entry_available_rejected(client):
+async def test_transfer_exceeding_entry_available_without_client_rejected(client):
     collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
     cash_id = await _create_wallet(client, token_a, "CASH")
     entry = await client.post(
@@ -194,7 +194,7 @@ async def test_transfer_exceeding_entry_available_rejected(client):
         headers=_auth_headers(token_a),
     )
     assert response.status_code == 409
-    assert "Phase 9" in response.json()["detail"]
+    assert "client" in response.json()["detail"]
 
 
 async def test_only_collaborator_can_approve_and_balance_updates(client):

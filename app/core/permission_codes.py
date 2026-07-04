@@ -11,6 +11,7 @@ class PermissionCode(StrEnum):
     NATIONAL_OPERATION_MANAGE = "national_operation.manage"
     COLLABORATION_MANAGE = "collaboration.manage"
     SUPPLIER_MANAGE = "supplier.manage"
+    CLIENT_MANAGE = "client.manage"
     REPORT_VIEW = "report.view"
     REPORT_EXPORT = "report.export"
     RATE_PRIVATE_VIEW = "rate.private.view"
@@ -28,6 +29,7 @@ PERMISSION_DESCRIPTIONS: dict[PermissionCode, str] = {
     PermissionCode.NATIONAL_OPERATION_MANAGE: "Effectuer des opérations nationales (dépôt, retrait, échange, rééquilibrage)",
     PermissionCode.COLLABORATION_MANAGE: "Gérer les collaborations (demandes, acceptation, taux collaboratif)",
     PermissionCode.SUPPLIER_MANAGE: "Gérer les fournisseurs",
+    PermissionCode.CLIENT_MANAGE: "Gérer les clients et consulter leurs dettes",
     PermissionCode.REPORT_VIEW: "Voir les rapports",
     PermissionCode.REPORT_EXPORT: "Exporter les données",
     PermissionCode.RATE_PRIVATE_VIEW: "Voir les taux privés",

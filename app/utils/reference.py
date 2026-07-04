@@ -27,3 +27,7 @@ def generate_transfer_reference() -> str:
 
 def generate_payment_reference() -> str:
     return generate_reference("PA")
+
+
+def generate_supplier_movement_reference() -> str:
+    return generate_reference("SR")
