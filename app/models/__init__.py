@@ -1,6 +1,9 @@
 from app.models.base import Base
 from app.models.collaboration import Collaboration, CollaborationRateHistory, CollaborationStatus, RateProposalStatus
 from app.models.company import Company, CompanyStatus
+from app.models.entry import Entry, EntryStatus
+from app.models.entry_allocation import EntryAllocation, EntryAllocationTargetType
+from app.models.entry_line import EntryLine
 from app.models.national_operation import NationalOperation, NationalOperationStatus, NationalOperationType
 from app.models.national_operation_line import NationalOperationLine
 from app.models.password_reset_otp import PasswordResetOTP
@@ -18,6 +21,11 @@ __all__ = [
     "RateProposalStatus",
     "Company",
     "CompanyStatus",
+    "Entry",
+    "EntryStatus",
+    "EntryAllocation",
+    "EntryAllocationTargetType",
+    "EntryLine",
     "NationalOperation",
     "NationalOperationStatus",
     "NationalOperationType",

@@ -15,3 +15,7 @@ def generate_company_registration_code() -> str:
 
 def generate_operation_reference() -> str:
     return generate_reference("OP")
+
+
+def generate_entry_reference() -> str:
+    return generate_reference("EN")
