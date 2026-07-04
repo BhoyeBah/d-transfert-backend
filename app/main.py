@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 
 from app.core.exceptions import register_exception_handlers
-from app.routers import auth, companies, employees, national_operations, wallets
+from app.routers import (
+    auth,
+    collaborations,
+    companies,
+    employees,
+    national_operations,
+    private_rates,
+    wallets,
+)
 
 app = FastAPI(title="D-Transfert API", version="0.1.0")
 
@@ -12,6 +20,8 @@ app.include_router(companies.router)
 app.include_router(employees.router)
 app.include_router(wallets.router)
 app.include_router(national_operations.router)
+app.include_router(collaborations.router)
+app.include_router(private_rates.router)
 
 
 @app.get("/health")

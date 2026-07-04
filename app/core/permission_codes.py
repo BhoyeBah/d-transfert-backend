@@ -9,6 +9,7 @@ class PermissionCode(StrEnum):
     OPERATION_VALIDATE = "operation.validate"
     WALLET_MANAGE = "wallet.manage"
     NATIONAL_OPERATION_MANAGE = "national_operation.manage"
+    COLLABORATION_MANAGE = "collaboration.manage"
     SUPPLIER_MANAGE = "supplier.manage"
     REPORT_VIEW = "report.view"
     REPORT_EXPORT = "report.export"
@@ -25,6 +26,7 @@ PERMISSION_DESCRIPTIONS: dict[PermissionCode, str] = {
     PermissionCode.OPERATION_VALIDATE: "Valider une opération",
     PermissionCode.WALLET_MANAGE: "Gérer les wallets",
     PermissionCode.NATIONAL_OPERATION_MANAGE: "Effectuer des opérations nationales (dépôt, retrait, échange, rééquilibrage)",
+    PermissionCode.COLLABORATION_MANAGE: "Gérer les collaborations (demandes, acceptation, taux collaboratif)",
     PermissionCode.SUPPLIER_MANAGE: "Gérer les fournisseurs",
     PermissionCode.REPORT_VIEW: "Voir les rapports",
     PermissionCode.REPORT_EXPORT: "Exporter les données",
