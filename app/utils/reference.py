@@ -11,3 +11,7 @@ def generate_reference(prefix: str, length: int = 8) -> str:
 
 def generate_company_registration_code() -> str:
     return generate_reference("DT")
+
+
+def generate_operation_reference() -> str:
+    return generate_reference("OP")

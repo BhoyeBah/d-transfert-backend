@@ -8,6 +8,7 @@ class PermissionCode(StrEnum):
     PAYMENT_CREATE = "payment.create"
     OPERATION_VALIDATE = "operation.validate"
     WALLET_MANAGE = "wallet.manage"
+    NATIONAL_OPERATION_MANAGE = "national_operation.manage"
     SUPPLIER_MANAGE = "supplier.manage"
     REPORT_VIEW = "report.view"
     REPORT_EXPORT = "report.export"
@@ -23,6 +24,7 @@ PERMISSION_DESCRIPTIONS: dict[PermissionCode, str] = {
     PermissionCode.PAYMENT_CREATE: "Créer un paiement",
     PermissionCode.OPERATION_VALIDATE: "Valider une opération",
     PermissionCode.WALLET_MANAGE: "Gérer les wallets",
+    PermissionCode.NATIONAL_OPERATION_MANAGE: "Effectuer des opérations nationales (dépôt, retrait, échange, rééquilibrage)",
     PermissionCode.SUPPLIER_MANAGE: "Gérer les fournisseurs",
     PermissionCode.REPORT_VIEW: "Voir les rapports",
     PermissionCode.REPORT_EXPORT: "Exporter les données",

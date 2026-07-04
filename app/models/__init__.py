@@ -1,5 +1,7 @@
 from app.models.base import Base
 from app.models.company import Company, CompanyStatus
+from app.models.national_operation import NationalOperation, NationalOperationStatus, NationalOperationType
+from app.models.national_operation_line import NationalOperationLine
 from app.models.password_reset_otp import PasswordResetOTP
 from app.models.role import OverrideEffect, Permission, Role, RolePermission, UserPermissionOverride
 from app.models.user import User
@@ -10,6 +12,10 @@ __all__ = [
     "Base",
     "Company",
     "CompanyStatus",
+    "NationalOperation",
+    "NationalOperationStatus",
+    "NationalOperationType",
+    "NationalOperationLine",
     "PasswordResetOTP",
     "Permission",
     "Role",
