@@ -1,7 +1,7 @@
 """phase12_admin_platform
 
 Revision ID: fe6d7ee8b52b
-Revises: 1f3d2b8a7c44
+Revises: d6e2f4a8c901
 Create Date: 2026-07-06 13:57:31.181164
 
 """
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'fe6d7ee8b52b'
-down_revision: Union[str, Sequence[str], None] = '1f3d2b8a7c44'
+down_revision: Union[str, Sequence[str], None] = 'd6e2f4a8c901'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

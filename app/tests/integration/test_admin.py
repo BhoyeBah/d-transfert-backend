@@ -320,3 +320,52 @@ async def test_cannot_suspend_last_active_super_admin(db_session):
     # Only `admin_id` remains active; a different actor suspending it is blocked.
     with pytest.raises(ConflictError):
         await admin_service.set_user_status(db_session, other_id, admin_id, False)
+
+
+async def test_super_admin_can_update_company_details(client, db_session):
+    _, owner_token = await _register_and_login_owner(client)
+    admin_token = await _create_super_admin_token(db_session)
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    company_id = companies[0]["id"]
+
+    update_response = await client.patch(
+        f"/api/v1/admin/companies/{company_id}",
+        json={"name": "Entreprise Renommée", "address": "Nouvelle adresse", "default_currency": "XOF"},
+        headers=_auth_headers(admin_token),
+    )
+    assert update_response.status_code == 200
+    body = update_response.json()
+    assert body["name"] == "Entreprise Renommée"
+    assert body["address"] == "Nouvelle adresse"
+    assert body["default_currency"] == "XOF"
+    # Untouched fields are preserved.
+    assert body["phone"] == "+224901000001"
+
+    detail = await client.get(
+        f"/api/v1/admin/companies/{company_id}", headers=_auth_headers(admin_token)
+    )
+    assert detail.json()["name"] == "Entreprise Renommée"
+
+    forbidden = await client.patch(
+        f"/api/v1/admin/companies/{company_id}",
+        json={"name": "Hack"},
+        headers=_auth_headers(owner_token),
+    )
+    assert forbidden.status_code == 403
+
+
+async def test_super_admin_cannot_reuse_another_companys_phone(client, db_session):
+    _, _ = await _register_and_login_owner(client, company_phone="+224901000002")
+    _, _ = await _register_and_login_owner(client, company_name="Autre Entreprise", company_phone="+224901000003")
+    admin_token = await _create_super_admin_token(db_session)
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    target = next(c for c in companies if c["phone"] == "+224901000003")
+
+    response = await client.patch(
+        f"/api/v1/admin/companies/{target['id']}",
+        json={"phone": "+224901000002"},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 409

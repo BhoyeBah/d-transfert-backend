@@ -19,7 +19,7 @@ from app.schemas.admin import (
     SystemLogResponse,
 )
 from app.schemas.audit_log import AuditLogResponse
-from app.schemas.company import AdminCompanyStatusUpdateRequest, CompanyMeResponse
+from app.schemas.company import AdminCompanyStatusUpdateRequest, AdminCompanyUpdateRequest, CompanyMeResponse
 from app.services import admin_service, audit_service
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -55,6 +55,17 @@ async def get_company_detail(
     _current_user: CurrentUser = Depends(_require_super_admin),
 ) -> AdminCompanyDetailResponse:
     return await admin_service.get_company_detail(db, company_id)
+
+
+@router.patch("/companies/{company_id}", response_model=CompanyMeResponse)
+async def update_company(
+    company_id: uuid.UUID,
+    payload: AdminCompanyUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> CompanyMeResponse:
+    company = await admin_service.update_company(db, current_user.id, company_id, payload)
+    return CompanyMeResponse.model_validate(company, from_attributes=True)
 
 
 @router.patch("/companies/{company_id}/status", response_model=CompanyMeResponse)
