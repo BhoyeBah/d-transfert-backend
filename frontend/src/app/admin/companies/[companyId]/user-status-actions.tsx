@@ -12,7 +12,7 @@ export function UserStatusActions({
   isActive,
 }: {
   userId: string;
-  companyId: string;
+  companyId: string | null;
   isActive: boolean;
 }) {
   const [isPending, startTransition] = useTransition();

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -11,6 +11,7 @@ from app.schemas.admin import (
     AdminPlatformStatsResponse,
     AdminUserResponse,
     AdminUserStatusUpdateRequest,
+    PlatformAdminCreateRequest,
     PlatformSettingsResponse,
     PlatformSettingsUpdateRequest,
     SubscriptionResponse,
@@ -84,6 +85,23 @@ async def update_user_status(
     current_user: CurrentUser = Depends(_require_super_admin),
 ) -> AdminUserResponse:
     return await admin_service.set_user_status(db, current_user.id, user_id, payload.is_active)
+
+
+@router.get("/platform-admins", response_model=list[AdminUserResponse])
+async def list_platform_admins(
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_super_admin),
+) -> list[AdminUserResponse]:
+    return await admin_service.list_platform_admins(db)
+
+
+@router.post("/platform-admins", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED)
+async def create_platform_admin(
+    payload: PlatformAdminCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> AdminUserResponse:
+    return await admin_service.create_platform_admin(db, current_user.id, payload)
 
 
 @router.get("/companies/{company_id}/subscription", response_model=SubscriptionResponse)

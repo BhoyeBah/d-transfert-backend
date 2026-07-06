@@ -4,7 +4,8 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
+from app.core.security import hash_password
 from app.models.company import Company, CompanyStatus
 from app.models.subscription import Subscription
 from app.models.user import User
@@ -24,6 +25,7 @@ from app.schemas.admin import (
     AdminCompanyDetailResponse,
     AdminPlatformStatsResponse,
     AdminUserResponse,
+    PlatformAdminCreateRequest,
     PlatformSettingsResponse,
     PlatformSettingsUpdateRequest,
     SubscriptionResponse,
@@ -31,6 +33,7 @@ from app.schemas.admin import (
     SystemLogResponse,
 )
 from app.services import audit_service
+from app.utils.reference import generate_platform_admin_matricule
 
 
 def _user_to_response(user: User) -> AdminUserResponse:
@@ -128,6 +131,12 @@ async def set_user_status(
     if user is None:
         raise NotFoundError("Utilisateur introuvable.")
 
+    if user.is_super_admin and not is_active:
+        if user.id == acted_by_user_id:
+            raise ConflictError("Vous ne pouvez pas suspendre votre propre compte.")
+        if await user_repository.count_active_super_admins(session) <= 1:
+            raise ConflictError("Impossible de suspendre le dernier compte Super Admin actif.")
+
     user.is_active = is_active
     await audit_service.log_action(
         session, user.company_id, acted_by_user_id, "admin.user_status_change", "user", user.id,
@@ -135,6 +144,45 @@ async def set_user_status(
     )
     await session.commit()
     return _user_to_response(user)
+
+
+async def list_platform_admins(session: AsyncSession) -> list[AdminUserResponse]:
+    admins = await user_repository.list_super_admins(session)
+    return [_user_to_response(admin) for admin in admins]
+
+
+async def create_platform_admin(
+    session: AsyncSession, acted_by_user_id: uuid.UUID, payload: PlatformAdminCreateRequest
+) -> AdminUserResponse:
+    if await user_repository.get_super_admin_by_phone(session, payload.phone) is not None:
+        raise ConflictError("Ce numéro de téléphone est déjà utilisé par un compte Super Admin.")
+
+    matricule = None
+    for _ in range(10):
+        candidate = generate_platform_admin_matricule()
+        if await user_repository.get_by_matricule(session, candidate) is None:
+            matricule = candidate
+            break
+    if matricule is None:
+        raise ConflictError("Impossible de générer un matricule unique, réessayez.")
+
+    admin = User(
+        company_id=None,
+        matricule=matricule,
+        full_name=payload.full_name,
+        phone=payload.phone,
+        password_hash=hash_password(payload.password),
+        is_owner=False,
+        is_super_admin=True,
+        is_active=True,
+    )
+    session.add(admin)
+    await session.flush()
+    await audit_service.log_action(
+        session, None, acted_by_user_id, "admin.platform_admin_create", "user", admin.id
+    )
+    await session.commit()
+    return _user_to_response(admin)
 
 
 async def get_platform_stats(session: AsyncSession) -> AdminPlatformStatsResponse:

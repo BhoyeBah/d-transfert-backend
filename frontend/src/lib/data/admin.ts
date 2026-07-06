@@ -43,3 +43,7 @@ export async function getAdminSettings(): Promise<PlatformSettings> {
 export async function getAdminSubscription(companyId: string): Promise<Subscription> {
   return serverFetch<Subscription>(`/api/v1/admin/companies/${companyId}/subscription`);
 }
+
+export async function listPlatformAdmins(): Promise<AdminUser[]> {
+  return serverFetch<AdminUser[]>("/api/v1/admin/platform-admins");
+}

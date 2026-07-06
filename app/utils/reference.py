@@ -17,6 +17,10 @@ def generate_employee_matricule(company_registration_code: str, sequence: int) -
     return f"{company_registration_code}-EMP{sequence:03d}"
 
 
+def generate_platform_admin_matricule() -> str:
+    return generate_reference("SA")
+
+
 def generate_operation_reference() -> str:
     return generate_reference("OP")
 

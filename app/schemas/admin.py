@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.company import CompanyStatus
 from app.models.subscription import SubscriptionPlan, SubscriptionStatus
@@ -23,6 +23,14 @@ class AdminUserResponse(BaseModel):
 
 class AdminUserStatusUpdateRequest(BaseModel):
     is_active: bool
+
+
+class PlatformAdminCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str = Field(min_length=2, max_length=255)
+    phone: str = Field(min_length=6, max_length=32)
+    password: str = Field(min_length=8, max_length=128)
 
 
 class AdminCompanyDetailResponse(BaseModel):

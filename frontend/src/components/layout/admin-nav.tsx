@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const ADMIN_NAV_ITEMS = [
   { href: "/admin", label: "Vue d'ensemble" },
   { href: "/admin/companies", label: "Entreprises" },
+  { href: "/admin/platform-admins", label: "Comptes Super Admin" },
   { href: "/admin/audit-logs", label: "Journal d'audit" },
   { href: "/admin/system-logs", label: "Logs système" },
   { href: "/admin/settings", label: "Paramètres" },
