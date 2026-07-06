@@ -18,6 +18,24 @@ export const PermissionCode = {
 
 export type PermissionCode = (typeof PermissionCode)[keyof typeof PermissionCode];
 
+export const PERMISSION_LABELS: Record<PermissionCode, string> = {
+  [PermissionCode.DASHBOARD_VIEW]: "Voir le dashboard",
+  [PermissionCode.ENTRY_MANAGE]: "Gérer les entrées",
+  [PermissionCode.TRANSFER_CREATE]: "Créer un envoi",
+  [PermissionCode.PAYMENT_CREATE]: "Créer un paiement",
+  [PermissionCode.OPERATION_VALIDATE]: "Valider une opération",
+  [PermissionCode.WALLET_MANAGE]: "Gérer les wallets",
+  [PermissionCode.NATIONAL_OPERATION_MANAGE]: "Effectuer des opérations nationales",
+  [PermissionCode.COLLABORATION_MANAGE]: "Gérer les collaborations",
+  [PermissionCode.SUPPLIER_MANAGE]: "Gérer les fournisseurs",
+  [PermissionCode.CLIENT_MANAGE]: "Gérer les clients",
+  [PermissionCode.REPORT_VIEW]: "Voir les rapports",
+  [PermissionCode.REPORT_EXPORT]: "Exporter les données",
+  [PermissionCode.RATE_PRIVATE_VIEW]: "Voir les taux privés",
+  [PermissionCode.RATE_PRIVATE_MANAGE]: "Modifier les taux privés",
+  [PermissionCode.EMPLOYEE_MANAGE]: "Gérer les employés",
+};
+
 export function hasPermission(
   permissions: string[],
   isOwner: boolean,
