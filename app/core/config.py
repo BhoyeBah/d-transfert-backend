@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 14
+    upload_dir: str = "uploads"
+    max_upload_size_mb: int = 10
 
 
 @lru_cache

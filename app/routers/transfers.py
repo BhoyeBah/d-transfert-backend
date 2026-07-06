@@ -1,12 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.exceptions import PermissionDeniedError
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, get_current_user, require_permission
+from app.schemas.proof import ProofResponse
 from app.schemas.transfer import (
     TransferApproveRequest,
     TransferCreateRequest,
@@ -14,7 +16,7 @@ from app.schemas.transfer import (
     TransferResponse,
     TransferStatusHistoryResponse,
 )
-from app.services import transfer_service
+from app.services import proof_service, transfer_service
 
 router = APIRouter(prefix="/api/v1/transfers", tags=["transfers"])
 
@@ -113,3 +115,49 @@ async def reject_transfer(
         db, company_id, current_user.id, transfer_id, payload.reason
     )
     return _serialize(transfer, company_id)
+
+
+@router.post("/{transfer_id}/proofs", response_model=ProofResponse, status_code=status.HTTP_201_CREATED)
+async def upload_transfer_proof(
+    transfer_id: uuid.UUID,
+    file: UploadFile = File(...),
+    note: str | None = Form(default=None),
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_view_access),
+) -> ProofResponse:
+    content = await file.read()
+    proof = await proof_service.upload_transfer_proof(
+        db,
+        company_id,
+        current_user.id,
+        transfer_id,
+        file.filename or "preuve",
+        file.content_type,
+        content,
+        note,
+    )
+    return ProofResponse.model_validate(proof, from_attributes=True)
+
+
+@router.get("/{transfer_id}/proofs", response_model=list[ProofResponse])
+async def list_transfer_proofs(
+    transfer_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_view_access),
+) -> list[ProofResponse]:
+    proofs = await proof_service.list_transfer_proofs(db, company_id, transfer_id)
+    return [ProofResponse.model_validate(proof, from_attributes=True) for proof in proofs]
+
+
+@router.get("/{transfer_id}/proofs/{proof_id}/file")
+async def download_transfer_proof(
+    transfer_id: uuid.UUID,
+    proof_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_view_access),
+) -> FileResponse:
+    proof = await proof_service.get_transfer_proof_file(db, company_id, transfer_id, proof_id)
+    return FileResponse(proof.storage_path, media_type=proof.content_type, filename=proof.file_name)

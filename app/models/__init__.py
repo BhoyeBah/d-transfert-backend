@@ -15,6 +15,7 @@ from app.models.password_reset_otp import PasswordResetOTP
 from app.models.payment import Payment, PaymentStatus, PaymentStatusHistory
 from app.models.platform_setting import PlatformSetting
 from app.models.private_sending_rate import PrivateSendingRate
+from app.models.proof import Proof
 from app.models.role import OverrideEffect, Permission, Role, RolePermission, UserPermissionOverride
 from app.models.subscription import Subscription, SubscriptionPlan, SubscriptionStatus
 from app.models.supplier import Supplier
@@ -54,6 +55,7 @@ __all__ = [
     "PaymentStatusHistory",
     "PlatformSetting",
     "PrivateSendingRate",
+    "Proof",
     "Permission",
     "Role",
     "RolePermission",

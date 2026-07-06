@@ -1,6 +1,7 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -14,7 +15,8 @@ from app.schemas.payment import (
     PaymentResponse,
     PaymentStatusHistoryResponse,
 )
-from app.services import payment_service
+from app.schemas.proof import ProofResponse
+from app.services import payment_service, proof_service
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
@@ -104,3 +106,49 @@ async def reject_payment(
         db, company_id, current_user.id, payment_id, payload.reason
     )
     return PaymentResponse.model_validate(payment, from_attributes=True)
+
+
+@router.post("/{payment_id}/proofs", response_model=ProofResponse, status_code=status.HTTP_201_CREATED)
+async def upload_payment_proof(
+    payment_id: uuid.UUID,
+    file: UploadFile = File(...),
+    note: str | None = Form(default=None),
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_view_access),
+) -> ProofResponse:
+    content = await file.read()
+    proof = await proof_service.upload_payment_proof(
+        db,
+        company_id,
+        current_user.id,
+        payment_id,
+        file.filename or "preuve",
+        file.content_type,
+        content,
+        note,
+    )
+    return ProofResponse.model_validate(proof, from_attributes=True)
+
+
+@router.get("/{payment_id}/proofs", response_model=list[ProofResponse])
+async def list_payment_proofs(
+    payment_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_view_access),
+) -> list[ProofResponse]:
+    proofs = await proof_service.list_payment_proofs(db, company_id, payment_id)
+    return [ProofResponse.model_validate(proof, from_attributes=True) for proof in proofs]
+
+
+@router.get("/{payment_id}/proofs/{proof_id}/file")
+async def download_payment_proof(
+    payment_id: uuid.UUID,
+    proof_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_view_access),
+) -> FileResponse:
+    proof = await proof_service.get_payment_proof_file(db, company_id, payment_id, proof_id)
+    return FileResponse(proof.storage_path, media_type=proof.content_type, filename=proof.file_name)
