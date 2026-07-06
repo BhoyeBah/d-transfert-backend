@@ -64,7 +64,19 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isPublicPath && hasSession) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    const payload = accessToken ? decodeJwtPayload(accessToken) : null;
+    const landing = payload?.is_super_admin ? "/admin" : "/dashboard";
+    return NextResponse.redirect(new URL(landing, request.url));
+  }
+
+  // Super Admin has no company_id: every company-scoped page (dashboard,
+  // wallets, entries, ...) calls an endpoint that rejects it. Force it into
+  // the platform-wide /admin section regardless of which URL it requests.
+  if (hasSession && !isPublicPath && !pathname.startsWith("/admin")) {
+    const payload = accessToken ? decodeJwtPayload(accessToken) : null;
+    if (payload?.is_super_admin) {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
   }
 
   const requestHeaders = new Headers(request.headers);

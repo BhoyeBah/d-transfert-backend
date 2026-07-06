@@ -35,6 +35,7 @@ export function AppTopbar({
   matricule,
   roleLabel,
   unreadNotifications,
+  showNotifications = true,
   navItems,
 }: {
   companyName: string;
@@ -42,6 +43,7 @@ export function AppTopbar({
   matricule: string;
   roleLabel: string;
   unreadNotifications: number;
+  showNotifications?: boolean;
   navItems: NavItem[];
 }) {
   return (
@@ -67,15 +69,17 @@ export function AppTopbar({
         </Badge>
       </div>
 
-      <Button variant="ghost" size="icon" asChild className="relative">
-        <Link href="/notifications">
-          <BellIcon />
-          {unreadNotifications > 0 && (
-            <span className="absolute top-1.5 right-1.5 flex size-2 rounded-full bg-destructive" />
-          )}
-          <span className="sr-only">Notifications</span>
-        </Link>
-      </Button>
+      {showNotifications && (
+        <Button variant="ghost" size="icon" asChild className="relative">
+          <Link href="/notifications">
+            <BellIcon />
+            {unreadNotifications > 0 && (
+              <span className="absolute top-1.5 right-1.5 flex size-2 rounded-full bg-destructive" />
+            )}
+            <span className="sr-only">Notifications</span>
+          </Link>
+        </Button>
+      )}
 
       <ThemeToggle />
 
