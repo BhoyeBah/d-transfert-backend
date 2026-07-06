@@ -98,11 +98,14 @@ d'entreprise pour l'Owner, matricule + téléphone pour un employé).
 
 ## Comptes de test
 
-Il n'y a pas de compte pré-seedé : chaque entreprise se crée elle-même via
-`POST /api/v1/auth/register` (voir `/docs` pour le payload exact), ce qui crée automatiquement
-son compte Owner. Un compte Super Admin de plateforme ne peut **pas** être créé via l'inscription
-publique ; il doit être inséré directement en base (voir
-`app/tests/integration/test_admin.py::_create_super_admin_token` pour un exemple).
+Chaque entreprise se crée elle-même via `POST /api/v1/auth/register` (voir `/docs` pour le payload
+exact), ce qui crée automatiquement son compte Owner.
+
+Il n'y a pas de compte Super Admin pré-seedé. Une fois qu'un premier compte Super Admin existe, il
+peut en créer d'autres via `/admin/platform-admins` (frontend) ou `POST /api/v1/admin/platform-admins`
+(API). Pour créer ce tout premier compte, insérez-le directement en base — voir
+`app/tests/integration/test_admin.py::_create_super_admin` pour un exemple des champs requis
+(`company_id` nul, `is_super_admin=True`, mot de passe hashé avec `app.core.security.hash_password`).
 
 ## Tests
 
