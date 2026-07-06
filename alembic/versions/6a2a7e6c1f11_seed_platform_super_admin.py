@@ -1,7 +1,7 @@
 """seed platform super admin
 
 Revision ID: 6a2a7e6c1f11
-Revises: 5a5893ceeb22
+Revises: d6e2f4a8c901
 Create Date: 2026-07-06 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 revision: str = "6a2a7e6c1f11"
-down_revision: Union[str, Sequence[str], None] = "5a5893ceeb22"
+down_revision: Union[str, Sequence[str], None] = "d6e2f4a8c901"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
