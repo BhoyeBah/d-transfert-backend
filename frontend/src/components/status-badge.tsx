@@ -25,6 +25,14 @@ const STATUS_CONFIG: Record<string, { label: string; variant: Variant }> = {
   suspended: { label: "Suspendue", variant: "secondary" },
   archived: { label: "Archivée", variant: "secondary" },
   proposed: { label: "Proposé", variant: "warning" },
+  // system logs / subscriptions
+  info: { label: "Info", variant: "outline" },
+  warning: { label: "Avertissement", variant: "warning" },
+  error: { label: "Erreur", variant: "destructive" },
+  expired: { label: "Expiré", variant: "secondary" },
+  free: { label: "Gratuit", variant: "outline" },
+  standard: { label: "Standard", variant: "secondary" },
+  premium: { label: "Premium", variant: "success" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

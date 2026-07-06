@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { listAdminCompanies } from "@/lib/data/admin";
 import { PageHeader } from "@/components/page-header";
@@ -46,7 +47,11 @@ export default async function AdminCompaniesPage() {
               <TableBody>
                 {companies.map((company) => (
                   <TableRow key={company.id}>
-                    <TableCell className="font-medium">{company.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/admin/companies/${company.id}`} className="hover:underline">
+                        {company.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{company.registration_code}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{company.phone}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{company.default_currency}</TableCell>

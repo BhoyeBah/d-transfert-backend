@@ -363,3 +363,79 @@ export type AuditLogEntry = {
   note: string | null;
   created_at: string;
 };
+
+export type AdminUser = {
+  id: string;
+  company_id: string | null;
+  matricule: string;
+  full_name: string;
+  phone: string;
+  is_owner: boolean;
+  is_super_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type AdminCompanyDetail = {
+  id: string;
+  name: string;
+  registration_code: string;
+  address: string | null;
+  phone: string;
+  default_currency: string;
+  status: CompanyStatus;
+  created_at: string;
+  users_count: number;
+  wallets_count: number;
+  wallets_balance_by_currency: Record<string, string>;
+  entries_count: number;
+  national_operations_count: number;
+  transfers_count: number;
+  payments_count: number;
+};
+
+export type AdminPlatformStats = {
+  companies_total: number;
+  companies_active: number;
+  companies_pending: number;
+  companies_suspended: number;
+  users_total: number;
+  wallets_total: number;
+  entries_total: number;
+  national_operations_total: number;
+  transfers_total: number;
+  payments_total: number;
+  transactions_total: number;
+  volume_by_currency: Record<string, string>;
+  system_logs_recent_count: number;
+};
+
+export type SystemLogLevel = "info" | "warning" | "error";
+
+export type SystemLogEntry = {
+  id: string;
+  level: SystemLogLevel;
+  source: string;
+  message: string;
+  company_id: string | null;
+  user_id: string | null;
+  created_at: string;
+};
+
+export type PlatformSettings = {
+  supported_currencies: string[];
+  max_transaction_amount: string | null;
+  maintenance_mode: boolean;
+};
+
+export type SubscriptionPlan = "free" | "standard" | "premium";
+export type SubscriptionStatus = "active" | "expired" | "cancelled";
+
+export type Subscription = {
+  company_id: string;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+  price: string | null;
+  currency: string | null;
+  renews_at: string | null;
+};
