@@ -27,7 +27,8 @@ ADMIN_ID = uuid.uuid5(uuid.NAMESPACE_DNS, "d-transfert-platform-super-admin")
 
 def upgrade() -> None:
     """Seed a platform super admin account for direct platform login."""
-    op.execute(
+    connection = op.get_bind()
+    connection.execute(
         sa.text(
             """
             INSERT INTO users (
@@ -76,4 +77,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove the seeded platform super admin account."""
-    op.execute(sa.text("DELETE FROM users WHERE matricule = :matricule"), {"matricule": ADMIN_MATRICULE})
+    op.get_bind().execute(
+        sa.text("DELETE FROM users WHERE matricule = :matricule"),
+        {"matricule": ADMIN_MATRICULE},
+    )
