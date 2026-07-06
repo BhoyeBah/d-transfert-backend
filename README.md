@@ -103,7 +103,7 @@ exact), ce qui crée automatiquement son compte Owner.
 
 Compte Super Admin seedé pour la plateforme :
 
-* Matricule de connexion : `contact@platform.com`
+* Matricule de connexion : `MAT-AD-001`
 * Mot de passe : `Passer1234`
 
 Ce compte n'est rattaché à aucune entreprise et sert uniquement aux routes `/api/v1/admin/*`.
