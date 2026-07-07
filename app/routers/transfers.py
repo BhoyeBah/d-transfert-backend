@@ -117,6 +117,17 @@ async def reject_transfer(
     return _serialize(transfer, company_id)
 
 
+@router.post("/{transfer_id}/cancel", response_model=TransferResponse)
+async def cancel_transfer(
+    transfer_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_create),
+) -> TransferResponse:
+    transfer = await transfer_service.cancel_transfer(db, company_id, current_user.id, transfer_id)
+    return _serialize(transfer, company_id)
+
+
 @router.post("/{transfer_id}/proofs", response_model=ProofResponse, status_code=status.HTTP_201_CREATED)
 async def upload_transfer_proof(
     transfer_id: uuid.UUID,

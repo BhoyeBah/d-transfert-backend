@@ -305,6 +305,43 @@ async def reject_transfer(
     return transfer
 
 
+async def cancel_transfer(
+    session: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, transfer_id: uuid.UUID
+) -> Transfer:
+    transfer, _collaboration = await _get_transfer_for_party(session, company_id, transfer_id, for_update=True)
+
+    if transfer.company_id != company_id:
+        raise PermissionDeniedError("Seule l'entreprise à l'origine de l'envoi peut l'annuler.")
+    if transfer.status != TransferStatus.PENDING:
+        raise ConflictError("Cet envoi n'est plus en attente.")
+
+    old_status = transfer.status
+    transfer.status = TransferStatus.CANCELLED
+
+    if transfer.entry_id is not None:
+        allocation = await entry_repository.get_allocation_by_target(
+            session, EntryAllocationTargetType.TRANSFER, transfer.id
+        )
+        if allocation is not None:
+            await session.delete(allocation)
+            await session.flush()
+        entry, lines, allocations = await entry_service.get_entry(session, transfer.company_id, transfer.entry_id)
+        entry.status = entry_service.recompute_status(lines, allocations)
+
+    history = TransferStatusHistory(
+        transfer_id=transfer.id,
+        old_status=old_status,
+        new_status=TransferStatus.CANCELLED,
+        company_id=company_id,
+    )
+    session.add(history)
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "transfer.cancel", "transfer", transfer.id
+    )
+    await session.commit()
+    return transfer
+
+
 async def get_transfer(session: AsyncSession, company_id: uuid.UUID, transfer_id: uuid.UUID) -> Transfer:
     transfer, _collaboration = await _get_transfer_for_party(session, company_id, transfer_id)
     return transfer

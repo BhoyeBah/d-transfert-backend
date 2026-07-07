@@ -294,6 +294,70 @@ async def test_reject_payment_reverts_entry_and_leaves_balance_untouched(client)
     assert balance.json()["balance"] == "0"
 
 
+async def test_creator_can_cancel_pending_payment_and_entry_reverts(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    cash_id = await _create_wallet(client, token_b, "CASH")
+    entry = await client.post(
+        "/api/v1/entries",
+        json={"lines": [{"wallet_id": cash_id, "amount": "50000", "currency": "GNF"}]},
+        headers=_auth_headers(token_b),
+    )
+    entry_id = entry.json()["id"]
+
+    create_response = await client.post(
+        "/api/v1/payments",
+        json={
+            "collaboration_id": collaboration_id,
+            "entry_id": entry_id,
+            "amount": "30000",
+            "currency": "GNF",
+        },
+        headers=_auth_headers(token_b),
+    )
+    payment_id = create_response.json()["id"]
+
+    cancel_response = await client.post(
+        f"/api/v1/payments/{payment_id}/cancel", headers=_auth_headers(token_b)
+    )
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+
+    entry_after = await client.get(f"/api/v1/entries/{entry_id}", headers=_auth_headers(token_b))
+    assert entry_after.json()["status"] == "unallocated"
+    assert entry_after.json()["available_by_currency"] == {"GNF": "50000.00"}
+
+
+async def test_counterparty_cannot_cancel_payment(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    create_response = await client.post(
+        "/api/v1/payments",
+        json={"collaboration_id": collaboration_id, "amount": "10000", "currency": "GNF"},
+        headers=_auth_headers(token_b),
+    )
+    payment_id = create_response.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/payments/{payment_id}/cancel", headers=_auth_headers(token_a)
+    )
+    assert response.status_code == 403
+
+
+async def test_approved_payment_cannot_be_cancelled(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    create_response = await client.post(
+        "/api/v1/payments",
+        json={"collaboration_id": collaboration_id, "amount": "10000", "currency": "GNF"},
+        headers=_auth_headers(token_b),
+    )
+    payment_id = create_response.json()["id"]
+    await client.post(f"/api/v1/payments/{payment_id}/approve", json={}, headers=_auth_headers(token_a))
+
+    response = await client.post(
+        f"/api/v1/payments/{payment_id}/cancel", headers=_auth_headers(token_b)
+    )
+    assert response.status_code == 409
+
+
 async def test_reject_requires_reason(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
     create_response = await client.post(

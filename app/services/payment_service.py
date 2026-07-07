@@ -325,6 +325,43 @@ async def reject_payment(
     return payment
 
 
+async def cancel_payment(
+    session: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, payment_id: uuid.UUID
+) -> Payment:
+    payment, _collaboration = await _get_payment_for_party(session, company_id, payment_id, for_update=True)
+
+    if payment.company_id != company_id:
+        raise PermissionDeniedError("Seule l'entreprise à l'origine du paiement peut l'annuler.")
+    if payment.status != PaymentStatus.PENDING:
+        raise ConflictError("Ce paiement n'est plus en attente.")
+
+    old_status = payment.status
+    payment.status = PaymentStatus.CANCELLED
+
+    if payment.entry_id is not None:
+        allocation = await entry_repository.get_allocation_by_target(
+            session, EntryAllocationTargetType.PAYMENT, payment.id
+        )
+        if allocation is not None:
+            await session.delete(allocation)
+            await session.flush()
+        entry, lines, allocations = await entry_service.get_entry(session, payment.company_id, payment.entry_id)
+        entry.status = entry_service.recompute_status(lines, allocations)
+
+    history = PaymentStatusHistory(
+        payment_id=payment.id,
+        old_status=old_status,
+        new_status=PaymentStatus.CANCELLED,
+        company_id=company_id,
+    )
+    session.add(history)
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "payment.cancel", "payment", payment.id
+    )
+    await session.commit()
+    return payment
+
+
 async def get_payment(session: AsyncSession, company_id: uuid.UUID, payment_id: uuid.UUID) -> Payment:
     payment, _collaboration = await _get_payment_for_party(session, company_id, payment_id)
     return payment

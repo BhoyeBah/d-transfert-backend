@@ -108,6 +108,17 @@ async def reject_payment(
     return PaymentResponse.model_validate(payment, from_attributes=True)
 
 
+@router.post("/{payment_id}/cancel", response_model=PaymentResponse)
+async def cancel_payment(
+    payment_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_create),
+) -> PaymentResponse:
+    payment = await payment_service.cancel_payment(db, company_id, current_user.id, payment_id)
+    return PaymentResponse.model_validate(payment, from_attributes=True)
+
+
 @router.post("/{payment_id}/proofs", response_model=ProofResponse, status_code=status.HTTP_201_CREATED)
 async def upload_payment_proof(
     payment_id: uuid.UUID,
