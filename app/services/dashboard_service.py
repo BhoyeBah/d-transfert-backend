@@ -30,6 +30,7 @@ from app.schemas.dashboard import (
     DailyReportResponse,
     DashboardAlert,
     DashboardResponse,
+    EmployeeDashboardResponse,
 )
 
 PENDING_ALERT_THRESHOLD_HOURS = 72
@@ -163,6 +164,47 @@ async def build_dashboard(session: AsyncSession, company_id: uuid.UUID) -> Dashb
         suppliers_total_balance=suppliers_total_balance,
         unread_notifications_count=unread_notifications_count,
         alerts=alerts,
+    )
+
+
+async def build_employee_dashboard(
+    session: AsyncSession, company_id: uuid.UUID, user_id: uuid.UUID, include_wallets: bool
+) -> EmployeeDashboardResponse:
+    entries = await entry_repository.list_by_company(session, company_id)
+    own_entries_today = sum(
+        1 for entry in entries if entry.created_by_id == user_id and _is_today(entry.created_at)
+    )
+
+    transfers = await transfer_repository.list_for_company(session, company_id)
+    own_transfers_today = sum(
+        1 for transfer in transfers if transfer.created_by_id == user_id and _is_today(transfer.created_at)
+    )
+    own_pending_transfers = sum(
+        1
+        for transfer in transfers
+        if transfer.created_by_id == user_id and transfer.status == TransferStatus.PENDING
+    )
+
+    payments = await payment_repository.list_for_company(session, company_id)
+    own_payments_today = sum(
+        1 for payment in payments if payment.created_by_id == user_id and _is_today(payment.created_at)
+    )
+    own_pending_payments = sum(
+        1 for payment in payments if payment.created_by_id == user_id and payment.status == PaymentStatus.PENDING
+    )
+
+    wallets_count = 0
+    if include_wallets:
+        wallets = await wallet_repository.list_by_company(session, company_id)
+        wallets_count = len(wallets)
+
+    return EmployeeDashboardResponse(
+        entries_created_today_count=own_entries_today,
+        transfers_initiated_today_count=own_transfers_today,
+        payments_initiated_today_count=own_payments_today,
+        own_pending_transfers_count=own_pending_transfers,
+        own_pending_payments_count=own_pending_payments,
+        wallets_count=wallets_count,
     )
 
 

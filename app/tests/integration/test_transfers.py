@@ -604,6 +604,51 @@ async def test_reject_requires_reason(client):
     assert response.status_code == 422
 
 
+async def test_private_rate_scoped_to_operation_type_takes_priority(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    await client.post(
+        "/api/v1/private-rates",
+        json={"collaboration_id": collaboration_id, "currency": "GNF", "rate": "17.5"},
+        headers=_auth_headers(token_a),
+    )
+    await client.post(
+        "/api/v1/private-rates",
+        json={
+            "collaboration_id": collaboration_id,
+            "currency": "GNF",
+            "rate": "19.0",
+            "operation_type": "wave",
+        },
+        headers=_auth_headers(token_a),
+    )
+
+    cash_transfer = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert cash_transfer.json()["private_rate_used"] == "17.500000"
+
+    wave_transfer = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "wave",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert wave_transfer.json()["private_rate_used"] == "19.000000"
+
+
 async def test_private_rate_used_hidden_from_counterparty(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
     await client.post(

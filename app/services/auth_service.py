@@ -17,7 +17,12 @@ from app.core.security import (
 from app.models.company import Company, CompanyStatus
 from app.models.system_log import SystemLogLevel
 from app.models.user import User
-from app.repositories import company_repository, password_reset_otp_repository, user_repository
+from app.repositories import (
+    company_repository,
+    password_reset_otp_repository,
+    platform_setting_repository,
+    user_repository,
+)
 from app.schemas.auth import RegisterRequest, RegisterResponse
 from app.services import audit_service, system_log_service
 from app.utils.reference import generate_company_registration_code
@@ -44,13 +49,16 @@ async def register(db: AsyncSession, payload: RegisterRequest) -> RegisterRespon
     if registration_code is None:
         raise ConflictError("Impossible de générer un matricule unique, réessayez.")
 
+    platform_setting = await platform_setting_repository.get(db)
+    require_approval = platform_setting is not None and platform_setting.require_company_approval
+
     company = Company(
         name=payload.company_name,
         registration_code=registration_code,
         address=payload.address,
         phone=payload.company_phone,
         default_currency=payload.default_currency,
-        status=CompanyStatus.ACTIVE,
+        status=CompanyStatus.PENDING if require_approval else CompanyStatus.ACTIVE,
     )
     db.add(company)
     await db.flush()
@@ -92,6 +100,10 @@ async def _ensure_company_active(db: AsyncSession, user: User) -> None:
     company = await company_repository.get_by_id(db, user.company_id)
     if company is None or company.status == CompanyStatus.SUSPENDED:
         raise UnauthorizedError("Entreprise suspendue.")
+    if company.status == CompanyStatus.PENDING:
+        raise UnauthorizedError(
+            "Votre entreprise est en attente de validation par la plateforme. Réessayez plus tard."
+        )
 
 
 async def login(db: AsyncSession, matricule: str, password: str) -> tuple[str, str]:

@@ -37,6 +37,15 @@ class DashboardResponse(BaseModel):
     alerts: list[DashboardAlert]
 
 
+class EmployeeDashboardResponse(BaseModel):
+    entries_created_today_count: int
+    transfers_initiated_today_count: int
+    payments_initiated_today_count: int
+    own_pending_transfers_count: int
+    own_pending_payments_count: int
+    wallets_count: int
+
+
 class DailyReportResponse(BaseModel):
     date: str
     deposits_count: int

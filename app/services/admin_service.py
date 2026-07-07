@@ -274,6 +274,7 @@ async def get_settings(session: AsyncSession) -> PlatformSettingsResponse:
         supported_currencies=setting.supported_currencies,
         max_transaction_amount=setting.max_transaction_amount,
         maintenance_mode=setting.maintenance_mode,
+        require_company_approval=setting.require_company_approval,
     )
 
 
@@ -290,6 +291,8 @@ async def update_settings(
         setting.max_transaction_amount = payload.max_transaction_amount
     if payload.maintenance_mode is not None:
         setting.maintenance_mode = payload.maintenance_mode
+    if payload.require_company_approval is not None:
+        setting.require_company_approval = payload.require_company_approval
 
     await audit_service.log_action(
         session, None, acted_by_user_id, "admin.settings_update", "platform_setting", setting.id
@@ -299,6 +302,7 @@ async def update_settings(
         supported_currencies=setting.supported_currencies,
         max_transaction_amount=setting.max_transaction_amount,
         maintenance_mode=setting.maintenance_mode,
+        require_company_approval=setting.require_company_approval,
     )
 
 

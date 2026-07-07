@@ -19,6 +19,7 @@ class PrivateSendingRate(Base, UUIDPKMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("collaborations.id", ondelete="CASCADE"), nullable=True
     )
     country: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    operation_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     rate: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

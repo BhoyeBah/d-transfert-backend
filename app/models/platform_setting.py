@@ -15,3 +15,4 @@ class PlatformSetting(Base, UUIDPKMixin, TimestampMixin):
     supported_currencies: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     max_transaction_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     maintenance_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    require_company_approval: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

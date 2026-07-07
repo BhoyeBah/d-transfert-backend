@@ -12,6 +12,7 @@ async def get_active_by_scope(
     collaboration_id: uuid.UUID | None,
     country: str | None,
     currency: str,
+    operation_type: str | None = None,
 ) -> PrivateSendingRate | None:
     result = await session.execute(
         select(PrivateSendingRate).where(
@@ -19,6 +20,7 @@ async def get_active_by_scope(
             PrivateSendingRate.collaboration_id == collaboration_id,
             PrivateSendingRate.country == country,
             PrivateSendingRate.currency == currency,
+            PrivateSendingRate.operation_type == operation_type,
             PrivateSendingRate.is_active.is_(True),
         )
     )

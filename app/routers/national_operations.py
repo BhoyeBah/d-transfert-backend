@@ -31,6 +31,7 @@ def _to_response(
         client_name=operation.client_name,
         client_phone=operation.client_phone,
         note=operation.note,
+        exchange_rate=operation.exchange_rate,
         proof_id=operation.proof_id,
         created_by_id=operation.created_by_id,
         validated_at=operation.validated_at,

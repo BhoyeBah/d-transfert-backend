@@ -1,6 +1,30 @@
 import re
+import uuid
 
 import pytest
+
+from app.core.security import create_access_token, hash_password
+from app.models.user import User
+
+
+def _auth_headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _create_super_admin_token(db_session) -> str:
+    super_admin = User(
+        company_id=None,
+        matricule=f"SA-{uuid.uuid4().hex[:10]}",
+        full_name="Super Admin",
+        phone=f"+000{uuid.uuid4().int % 100000000:08d}",
+        password_hash=hash_password("SuperAdminPass123!"),
+        is_owner=False,
+        is_super_admin=True,
+        is_active=True,
+    )
+    db_session.add(super_admin)
+    await db_session.flush()
+    return create_access_token(str(super_admin.id), None)
 
 
 def _register_payload(**overrides):
@@ -61,6 +85,46 @@ async def test_owner_login_wrong_password_fails(client):
 
     response = await client.post("/api/v1/auth/login", json={"matricule": matricule, "password": "WrongPassword!"})
     assert response.status_code == 401
+
+
+async def test_registration_pending_when_approval_required(client, db_session):
+    admin_token = await _create_super_admin_token(db_session)
+    await client.patch(
+        "/api/v1/admin/settings",
+        json={"require_company_approval": True},
+        headers=_auth_headers(admin_token),
+    )
+
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    assert login_response.status_code == 401
+    assert "attente" in login_response.json()["detail"].lower()
+
+    activate_response = await client.patch(
+        f"/api/v1/admin/companies/{register_response.json()['company_id']}/status",
+        json={"status": "active"},
+        headers=_auth_headers(admin_token),
+    )
+    assert activate_response.status_code == 200
+
+    login_after_activation = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    assert login_after_activation.status_code == 200
+
+
+async def test_registration_active_by_default(client):
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    assert login_response.status_code == 200
 
 
 async def test_login_lockout_after_max_failed_attempts(client):

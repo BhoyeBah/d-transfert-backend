@@ -35,6 +35,11 @@ class NationalOperationCreateRequest(BaseModel):
     client_phone: str | None = Field(default=None, max_length=32)
     note: str | None = Field(default=None, max_length=255)
     proof_id: uuid.UUID | None = None
+    exchange_rate: Decimal | None = Field(
+        default=None,
+        gt=0,
+        description="Taux appliqué, requis uniquement lorsque l'opération implique deux devises différentes.",
+    )
     lines: list[NationalOperationLineRequest] = Field(min_length=2)
 
     @model_validator(mode="after")
@@ -43,10 +48,33 @@ class NationalOperationCreateRequest(BaseModel):
         for line in self.lines:
             totals.setdefault(line.currency, Decimal("0"))
             totals[line.currency] += line.amount_in - line.amount_out
-        unbalanced = {currency: total for currency, total in totals.items() if total != 0}
-        if unbalanced:
-            details = ", ".join(f"{currency}: écart {total}" for currency, total in unbalanced.items())
-            raise ValueError(f"Opération non équilibrée (total entrées != total sorties) : {details}")
+
+        if len(totals) == 1:
+            if self.exchange_rate is not None:
+                raise ValueError("Le taux de change ne s'applique qu'aux opérations impliquant deux devises.")
+            total = next(iter(totals.values()))
+            if total != 0:
+                raise ValueError(f"Opération non équilibrée (total entrées != total sorties) : écart {total}")
+        elif len(totals) == 2:
+            if self.exchange_rate is None:
+                raise ValueError("Un taux de change est requis pour une opération impliquant deux devises.")
+            (currency_a, total_a), (currency_b, total_b) = totals.items()
+            if total_a < 0 and total_b > 0:
+                source_total, dest_total = total_a, total_b
+            elif total_b < 0 and total_a > 0:
+                source_total, dest_total = total_b, total_a
+            else:
+                raise ValueError(
+                    "Une opération multi-devises doit avoir une devise source (sortie nette) "
+                    "et une devise destination (entrée nette)."
+                )
+            expected_dest = (-source_total) * self.exchange_rate
+            if abs(expected_dest - dest_total) > Decimal("0.01"):
+                raise ValueError(
+                    f"Montant converti incohérent avec le taux fourni : attendu {expected_dest}, obtenu {dest_total}."
+                )
+        else:
+            raise ValueError("Une opération ne peut impliquer que 1 ou 2 devises différentes à la fois.")
         return self
 
 
@@ -68,6 +96,7 @@ class NationalOperationResponse(BaseModel):
     client_name: str | None
     client_phone: str | None
     note: str | None
+    exchange_rate: Decimal | None
     proof_id: uuid.UUID | None
     created_by_id: uuid.UUID
     validated_at: datetime | None

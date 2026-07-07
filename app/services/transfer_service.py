@@ -96,8 +96,12 @@ async def create_transfer(
     )
 
     private_rate_row = await private_rate_repository.get_active_by_scope(
-        session, company_id, collaboration.id, None, payload.currency
+        session, company_id, collaboration.id, None, payload.currency, payload.send_mode
     )
+    if private_rate_row is None:
+        private_rate_row = await private_rate_repository.get_active_by_scope(
+            session, company_id, collaboration.id, None, payload.currency
+        )
     if private_rate_row is None:
         private_rate_row = await private_rate_repository.get_active_by_scope(
             session, company_id, None, None, payload.currency

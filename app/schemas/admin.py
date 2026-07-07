@@ -81,12 +81,14 @@ class PlatformSettingsResponse(BaseModel):
     supported_currencies: list[str]
     max_transaction_amount: Decimal | None
     maintenance_mode: bool
+    require_company_approval: bool
 
 
 class PlatformSettingsUpdateRequest(BaseModel):
     supported_currencies: list[str] | None = None
     max_transaction_amount: Decimal | None = None
     maintenance_mode: bool | None = None
+    require_company_approval: bool | None = None
 
 
 class SubscriptionResponse(BaseModel):

@@ -177,6 +177,99 @@ async def test_currency_mismatch_rejected(client):
     assert response.status_code == 422
 
 
+async def test_exchange_between_different_currencies_with_rate(client):
+    owner_token = await _register_and_login_owner(client)
+    xof_id = await _create_wallet(client, owner_token, "CASH-XOF", initial_balance="100000", currency="XOF")
+    gnf_id = await _create_wallet(client, owner_token, "CASH-GNF", initial_balance="0", currency="GNF")
+
+    response = await client.post(
+        "/api/v1/national-operations/exchanges",
+        json={
+            "exchange_rate": "17.5",
+            "lines": [
+                {"wallet_id": xof_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": gnf_id, "amount_in": "17500", "amount_out": "0", "currency": "GNF"},
+            ],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["exchange_rate"] == "17.5"
+
+    xof_wallet = await client.get(f"/api/v1/wallets/{xof_id}", headers=_auth_headers(owner_token))
+    gnf_wallet = await client.get(f"/api/v1/wallets/{gnf_id}", headers=_auth_headers(owner_token))
+    assert xof_wallet.json()["balance"] == "99000.00"
+    assert gnf_wallet.json()["balance"] == "17500.00"
+
+
+async def test_exchange_missing_rate_for_multi_currency_rejected(client):
+    owner_token = await _register_and_login_owner(client)
+    xof_id = await _create_wallet(client, owner_token, "CASH-XOF", initial_balance="100000", currency="XOF")
+    gnf_id = await _create_wallet(client, owner_token, "CASH-GNF", initial_balance="0", currency="GNF")
+
+    response = await client.post(
+        "/api/v1/national-operations/exchanges",
+        json={
+            "lines": [
+                {"wallet_id": xof_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": gnf_id, "amount_in": "17500", "amount_out": "0", "currency": "GNF"},
+            ],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 422
+
+
+async def test_exchange_rate_inconsistent_with_amounts_rejected(client):
+    owner_token = await _register_and_login_owner(client)
+    xof_id = await _create_wallet(client, owner_token, "CASH-XOF", initial_balance="100000", currency="XOF")
+    gnf_id = await _create_wallet(client, owner_token, "CASH-GNF", initial_balance="0", currency="GNF")
+
+    response = await client.post(
+        "/api/v1/national-operations/exchanges",
+        json={
+            "exchange_rate": "17.5",
+            "lines": [
+                {"wallet_id": xof_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": gnf_id, "amount_in": "10000", "amount_out": "0", "currency": "GNF"},
+            ],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 422
+
+
+async def test_cancel_exchange_reversal_mirrors_rate(client):
+    owner_token = await _register_and_login_owner(client)
+    xof_id = await _create_wallet(client, owner_token, "CASH-XOF", initial_balance="100000", currency="XOF")
+    gnf_id = await _create_wallet(client, owner_token, "CASH-GNF", initial_balance="0", currency="GNF")
+
+    create_response = await client.post(
+        "/api/v1/national-operations/exchanges",
+        json={
+            "exchange_rate": "17.5",
+            "lines": [
+                {"wallet_id": xof_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": gnf_id, "amount_in": "17500", "amount_out": "0", "currency": "GNF"},
+            ],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    operation_id = create_response.json()["id"]
+
+    cancel_response = await client.post(
+        f"/api/v1/national-operations/{operation_id}/cancel", headers=_auth_headers(owner_token)
+    )
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["exchange_rate"] == "17.500000"
+
+    xof_wallet = await client.get(f"/api/v1/wallets/{xof_id}", headers=_auth_headers(owner_token))
+    gnf_wallet = await client.get(f"/api/v1/wallets/{gnf_id}", headers=_auth_headers(owner_token))
+    assert xof_wallet.json()["balance"] == "100000.00"
+    assert gnf_wallet.json()["balance"] == "0.00"
+
+
 async def test_cancel_operation_creates_mirrored_reversal(client):
     owner_token = await _register_and_login_owner(client)
     cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="100000")
