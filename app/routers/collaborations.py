@@ -120,10 +120,10 @@ async def propose_rate_change(
     payload: RateProposalCreateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    current_user: CurrentUser = Depends(_require_manage),
 ) -> CollaborationRateHistoryResponse:
     proposal = await collaboration_service.propose_rate_change(
-        db, company_id, collaboration_id, payload.new_rate, payload.note
+        db, company_id, current_user.id, collaboration_id, payload.new_rate, payload.note
     )
     return CollaborationRateHistoryResponse.model_validate(proposal, from_attributes=True)
 
@@ -155,10 +155,10 @@ async def reject_rate_proposal(
     payload: RateProposalDecisionRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    current_user: CurrentUser = Depends(_require_manage),
 ) -> CollaborationRateHistoryResponse:
     proposal = await collaboration_service.reject_rate_proposal(
-        db, company_id, collaboration_id, proposal_id, payload.reason
+        db, company_id, current_user.id, collaboration_id, proposal_id, payload.reason
     )
     return CollaborationRateHistoryResponse.model_validate(proposal, from_attributes=True)
 

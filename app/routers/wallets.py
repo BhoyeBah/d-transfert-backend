@@ -53,9 +53,9 @@ async def update_wallet(
     payload: WalletUpdateRequest,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
+    current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
 ) -> WalletResponse:
-    return await wallet_service.update_wallet(db, company_id, wallet_id, payload)
+    return await wallet_service.update_wallet(db, company_id, current_user.id, wallet_id, payload)
 
 
 @router.patch("/{wallet_id}/status", response_model=WalletResponse)

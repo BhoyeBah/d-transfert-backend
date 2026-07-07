@@ -1,11 +1,14 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.transfer import SendMode, TransferStatus
 from app.utils.currency import is_supported_currency
+
+ReliquatAction = Literal["unallocated", "fee", "client_credit"]
 
 
 class TransferCreateRequest(BaseModel):
@@ -23,6 +26,14 @@ class TransferCreateRequest(BaseModel):
         default=None, max_length=255, description="Utilisé si le montant dépasse le disponible de l'entrée."
     )
     client_phone: str | None = Field(default=None, max_length=32)
+    reliquat_action: ReliquatAction = Field(
+        default="unallocated",
+        description=(
+            "Traitement du reliquat si le montant déclaré est inférieur au disponible de l'entrée : "
+            "'unallocated' (reste disponible), 'fee' (conservé comme frais), "
+            "'client_credit' (crédité au solde du client)."
+        ),
+    )
 
     @field_validator("currency")
     @classmethod

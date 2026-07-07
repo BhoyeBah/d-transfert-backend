@@ -107,7 +107,11 @@ async def get_wallet(session: AsyncSession, company_id: uuid.UUID, wallet_id: uu
 
 
 async def update_wallet(
-    session: AsyncSession, company_id: uuid.UUID, wallet_id: uuid.UUID, payload: WalletUpdateRequest
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    changed_by_user_id: uuid.UUID,
+    wallet_id: uuid.UUID,
+    payload: WalletUpdateRequest,
 ) -> Wallet:
     wallet = await get_wallet(session, company_id, wallet_id)
 
@@ -118,6 +122,9 @@ async def update_wallet(
     if payload.description is not None:
         wallet.description = payload.description
 
+    await audit_service.log_action(
+        session, company_id, changed_by_user_id, "wallet.update", "wallet", wallet.id
+    )
     await session.commit()
     return wallet
 

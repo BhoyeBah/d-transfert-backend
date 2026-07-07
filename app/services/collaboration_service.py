@@ -151,6 +151,7 @@ async def reject_collaboration(
 async def propose_rate_change(
     session: AsyncSession,
     company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
     collaboration_id: uuid.UUID,
     new_rate: Decimal,
     note: str | None,
@@ -176,6 +177,11 @@ async def propose_rate_change(
         note=note,
     )
     session.add(proposal)
+    await session.flush()
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.rate_propose", "collaboration_rate_history",
+        proposal.id, note=f"new_rate={new_rate}",
+    )
     await session.commit()
     return proposal
 
@@ -221,6 +227,7 @@ async def accept_rate_proposal(
 async def reject_rate_proposal(
     session: AsyncSession,
     company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
     collaboration_id: uuid.UUID,
     proposal_id: uuid.UUID,
     reason: str | None,
@@ -237,6 +244,10 @@ async def reject_rate_proposal(
     proposal.decided_at = datetime.now(timezone.utc)
     if reason:
         proposal.note = reason
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.rate_reject", "collaboration_rate_history",
+        proposal.id, note=reason,
+    )
     await session.commit()
     return proposal
 

@@ -11,7 +11,7 @@ from app.models.entry_line import EntryLine
 from app.models.wallet_movement import MovementDirection
 from app.repositories import entry_repository, wallet_repository
 from app.schemas.entry import EntryCreateRequest, EntryMergeRequest
-from app.services import wallet_service
+from app.services import audit_service, wallet_service
 from app.utils.reference import generate_entry_reference
 
 REFERENCE_MAX_RETRIES = 5
@@ -122,6 +122,7 @@ async def create_entry(
         session.add(line_row)
         lines.append(line_row)
 
+    await audit_service.log_action(session, company_id, created_by_id, "entry.create", "entry", entry.id)
     await session.commit()
     return entry, lines
 
