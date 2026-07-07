@@ -131,6 +131,10 @@ async def create_transfer(
                     f"({available_for_currency} {payload.currency} disponible) : un client "
                     "(nom et téléphone) est requis pour enregistrer la dette du manquant."
                 )
+    elif payload.client_name and payload.client_phone:
+        # Envoi direct (solde direct) : aucun montant n'a été reçu via une entrée, donc si un
+        # client est renseigné, la totalité du montant est une dette du client envers l'entreprise.
+        client_debt_amount = _quantize(payload.amount)
 
     converted_amount = _convert_to_collaboration_currency(
         payload.amount, payload.currency, collaboration.currency, collaborative_rate.new_rate
@@ -138,8 +142,8 @@ async def create_transfer(
 
     client = None
     if client_debt_amount > 0:
-        client_name = payload.client_name or entry.client_name
-        client_phone = payload.client_phone or entry.client_phone
+        client_name = payload.client_name or (entry.client_name if entry is not None else None)
+        client_phone = payload.client_phone or (entry.client_phone if entry is not None else None)
         client = await client_service.get_or_create_client(session, company_id, client_name, client_phone)
 
     reference = await _generate_unique_reference(session)

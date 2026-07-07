@@ -123,6 +123,10 @@ async def create_payment(
                     f"({available_for_currency} {payload.currency} disponible) : un client "
                     "(nom et téléphone) est requis pour enregistrer la dette du manquant."
                 )
+    elif payload.client_name and payload.client_phone:
+        # Paiement direct (sans entrée) : aucun montant n'a été reçu via une entrée, donc si un
+        # client est renseigné, la totalité du montant est une dette du client envers l'entreprise.
+        client_debt_amount = _quantize(payload.amount)
 
     wallet = None
     if payload.wallet_id is not None:
@@ -141,8 +145,8 @@ async def create_payment(
 
     client = None
     if client_debt_amount > 0:
-        client_name = payload.client_name or entry.client_name
-        client_phone = payload.client_phone or entry.client_phone
+        client_name = payload.client_name or (entry.client_name if entry is not None else None)
+        client_phone = payload.client_phone or (entry.client_phone if entry is not None else None)
         client = await client_service.get_or_create_client(session, company_id, client_name, client_phone)
 
     reference = await _generate_unique_reference(session)

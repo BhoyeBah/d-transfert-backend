@@ -197,6 +197,55 @@ async def test_transfer_exceeding_entry_available_without_client_rejected(client
     assert "client" in response.json()["detail"]
 
 
+async def test_direct_transfer_without_entry_with_client_creates_full_debt(client):
+    collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+            "client_name": "Bhoye",
+            "client_phone": "+224600011122",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["client_debt_amount"] == "80000.00"
+    assert body["client_id"] is not None
+
+    clients_response = await client.get("/api/v1/clients", headers=_auth_headers(token_a))
+    clients = clients_response.json()
+    assert len(clients) == 1
+    assert clients[0]["id"] == body["client_id"]
+    assert clients[0]["phone"] == "+224600011122"
+    assert clients[0]["balance"] == "80000.00"
+
+
+async def test_direct_transfer_without_entry_and_without_client_has_no_debt(client):
+    collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["client_debt_amount"] is None
+    assert body["client_id"] is None
+
+
 async def test_only_collaborator_can_approve_and_balance_updates(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
 
