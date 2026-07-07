@@ -9,12 +9,14 @@ from app.models.collaboration import Collaboration, CollaborationStatus
 from app.models.entry_allocation import EntryAllocation, EntryAllocationTargetType
 from app.models.notification import NotificationType
 from app.models.payment import Payment, PaymentStatus, PaymentStatusHistory
+from app.models.proof import ProofStatus
 from app.models.wallet_movement import MovementDirection
 from app.repositories import (
     collaboration_repository,
     collaborator_balance_repository,
     entry_repository,
     payment_repository,
+    proof_repository,
     wallet_repository,
 )
 from app.schemas.payment import PaymentCreateRequest
@@ -297,6 +299,8 @@ async def approve_payment(
     payment.status = PaymentStatus.APPROVED
     payment.approved_at = datetime.now(timezone.utc)
 
+    await proof_repository.set_status_for_payment(session, payment.id, ProofStatus.VALIDATED)
+
     history = PaymentStatusHistory(
         payment_id=payment.id,
         old_status=old_status,
@@ -340,6 +344,14 @@ async def reject_payment(
         )
         entry.status = entry_service.recompute_status(lines, allocations)
 
+    if payment.client_id is not None:
+        await client_service.reverse_movements_for_source(
+            session, payment.company_id, payment.client_id, "payment", payment.id,
+            acted_by_user_id, note=f"Annulation de la dette suite au rejet du paiement {payment.reference}",
+        )
+
+    await proof_repository.set_status_for_payment(session, payment.id, ProofStatus.REJECTED)
+
     history = PaymentStatusHistory(
         payment_id=payment.id,
         old_status=old_status,
@@ -366,7 +378,7 @@ async def reject_payment(
 async def cancel_payment(
     session: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, payment_id: uuid.UUID
 ) -> Payment:
-    payment, _collaboration = await _get_payment_for_party(session, company_id, payment_id, for_update=True)
+    payment, collaboration = await _get_payment_for_party(session, company_id, payment_id, for_update=True)
 
     if payment.company_id != company_id:
         raise PermissionDeniedError("Seule l'entreprise à l'origine du paiement peut l'annuler.")
@@ -386,6 +398,14 @@ async def cancel_payment(
         entry, lines, allocations = await entry_service.get_entry(session, payment.company_id, payment.entry_id)
         entry.status = entry_service.recompute_status(lines, allocations)
 
+    if payment.client_id is not None:
+        await client_service.reverse_movements_for_source(
+            session, payment.company_id, payment.client_id, "payment", payment.id,
+            acted_by_user_id, note=f"Annulation de la dette suite à l'annulation du paiement {payment.reference}",
+        )
+
+    await proof_repository.set_status_for_payment(session, payment.id, ProofStatus.REJECTED)
+
     history = PaymentStatusHistory(
         payment_id=payment.id,
         old_status=old_status,
@@ -395,6 +415,14 @@ async def cancel_payment(
     session.add(history)
     await audit_service.log_action(
         session, company_id, acted_by_user_id, "payment.cancel", "payment", payment.id
+    )
+    await notification_service.notify(
+        session,
+        _other_party(collaboration, company_id),
+        NotificationType.PAYMENT_CANCELLED,
+        f"Le paiement {payment.reference} a été annulé par son initiateur.",
+        link_type="payment",
+        link_id=payment.id,
     )
     await session.commit()
     return payment

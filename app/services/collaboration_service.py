@@ -182,6 +182,19 @@ async def propose_rate_change(
         session, company_id, acted_by_user_id, "collaboration.rate_propose", "collaboration_rate_history",
         proposal.id, note=f"new_rate={new_rate}",
     )
+    other_party_id = (
+        collaboration.target_company_id
+        if company_id == collaboration.initiator_company_id
+        else collaboration.initiator_company_id
+    )
+    await notification_service.notify(
+        session,
+        other_party_id,
+        NotificationType.RATE_PROPOSED,
+        f"Nouvelle proposition de taux collaboratif ({new_rate}) à valider.",
+        link_type="collaboration",
+        link_id=collaboration.id,
+    )
     await session.commit()
     return proposal
 

@@ -8,12 +8,14 @@ from app.core.exceptions import ConflictError, NotFoundError, PermissionDeniedEr
 from app.models.collaboration import Collaboration, CollaborationStatus
 from app.models.entry_allocation import EntryAllocation, EntryAllocationTargetType
 from app.models.notification import NotificationType
+from app.models.proof import ProofStatus
 from app.models.transfer import Transfer, TransferStatus, TransferStatusHistory
 from app.repositories import (
     collaboration_repository,
     collaborator_balance_repository,
     entry_repository,
     private_rate_repository,
+    proof_repository,
     transfer_repository,
 )
 from app.schemas.transfer import TransferCreateRequest
@@ -277,6 +279,8 @@ async def approve_transfer(
     transfer.status = TransferStatus.APPROVED
     transfer.approved_at = datetime.now(timezone.utc)
 
+    await proof_repository.set_status_for_transfer(session, transfer.id, ProofStatus.VALIDATED)
+
     history = TransferStatusHistory(
         transfer_id=transfer.id,
         old_status=old_status,
@@ -320,6 +324,14 @@ async def reject_transfer(
         )
         entry.status = entry_service.recompute_status(lines, allocations)
 
+    if transfer.client_id is not None:
+        await client_service.reverse_movements_for_source(
+            session, transfer.company_id, transfer.client_id, "transfer", transfer.id,
+            acted_by_user_id, note=f"Annulation de la dette suite au rejet de l'envoi {transfer.reference}",
+        )
+
+    await proof_repository.set_status_for_transfer(session, transfer.id, ProofStatus.REJECTED)
+
     history = TransferStatusHistory(
         transfer_id=transfer.id,
         old_status=old_status,
@@ -346,7 +358,7 @@ async def reject_transfer(
 async def cancel_transfer(
     session: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, transfer_id: uuid.UUID
 ) -> Transfer:
-    transfer, _collaboration = await _get_transfer_for_party(session, company_id, transfer_id, for_update=True)
+    transfer, collaboration = await _get_transfer_for_party(session, company_id, transfer_id, for_update=True)
 
     if transfer.company_id != company_id:
         raise PermissionDeniedError("Seule l'entreprise à l'origine de l'envoi peut l'annuler.")
@@ -366,6 +378,14 @@ async def cancel_transfer(
         entry, lines, allocations = await entry_service.get_entry(session, transfer.company_id, transfer.entry_id)
         entry.status = entry_service.recompute_status(lines, allocations)
 
+    if transfer.client_id is not None:
+        await client_service.reverse_movements_for_source(
+            session, transfer.company_id, transfer.client_id, "transfer", transfer.id,
+            acted_by_user_id, note=f"Annulation de la dette suite à l'annulation de l'envoi {transfer.reference}",
+        )
+
+    await proof_repository.set_status_for_transfer(session, transfer.id, ProofStatus.REJECTED)
+
     history = TransferStatusHistory(
         transfer_id=transfer.id,
         old_status=old_status,
@@ -375,6 +395,14 @@ async def cancel_transfer(
     session.add(history)
     await audit_service.log_action(
         session, company_id, acted_by_user_id, "transfer.cancel", "transfer", transfer.id
+    )
+    await notification_service.notify(
+        session,
+        _other_party(collaboration, company_id),
+        NotificationType.TRANSFER_CANCELLED,
+        f"L'envoi {transfer.reference} a été annulé par son initiateur.",
+        link_type="transfer",
+        link_id=transfer.id,
     )
     await session.commit()
     return transfer

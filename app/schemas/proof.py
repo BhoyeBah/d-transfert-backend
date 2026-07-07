@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.models.proof import ProofStatus
+
 
 class ProofResponse(BaseModel):
     id: uuid.UUID
@@ -14,4 +16,5 @@ class ProofResponse(BaseModel):
     content_type: str
     file_size: int
     note: str | None
+    status: ProofStatus
     created_at: datetime

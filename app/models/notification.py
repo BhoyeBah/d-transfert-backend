@@ -14,8 +14,11 @@ class NotificationType(StrEnum):
     COLLABORATION_REJECTED = "collaboration_rejected"
     TRANSFER_PENDING = "transfer_pending"
     TRANSFER_REJECTED = "transfer_rejected"
+    TRANSFER_CANCELLED = "transfer_cancelled"
     PAYMENT_PENDING = "payment_pending"
     PAYMENT_REJECTED = "payment_rejected"
+    PAYMENT_CANCELLED = "payment_cancelled"
+    RATE_PROPOSED = "rate_proposed"
 
 
 class Notification(Base, UUIDPKMixin, TimestampMixin):

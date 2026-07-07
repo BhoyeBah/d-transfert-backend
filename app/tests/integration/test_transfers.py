@@ -297,6 +297,109 @@ async def test_direct_transfer_without_entry_with_client_creates_full_debt(clien
     assert clients[0]["balance"] == "80000.00"
 
 
+async def test_cancel_transfer_reverses_client_debt(client):
+    collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
+
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+            "client_name": "Bhoye",
+            "client_phone": "+224600011166",
+        },
+        headers=_auth_headers(token_a),
+    )
+    transfer_id = create_response.json()["id"]
+    client_id = create_response.json()["client_id"]
+
+    clients_before = await client.get("/api/v1/clients", headers=_auth_headers(token_a))
+    assert clients_before.json()[0]["balance"] == "80000.00"
+
+    cancel_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/cancel", headers=_auth_headers(token_a)
+    )
+    assert cancel_response.status_code == 200
+
+    client_after = await client.get(f"/api/v1/clients/{client_id}", headers=_auth_headers(token_a))
+    assert client_after.json()["balance"] == "0.00"
+
+
+async def test_reject_transfer_reverses_client_debt(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+            "client_name": "Bhoye",
+            "client_phone": "+224600011177",
+        },
+        headers=_auth_headers(token_a),
+    )
+    transfer_id = create_response.json()["id"]
+    client_id = create_response.json()["client_id"]
+
+    reject_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/reject",
+        json={"reason": "Bénéficiaire introuvable"},
+        headers=_auth_headers(token_b),
+    )
+    assert reject_response.status_code == 200
+
+    client_after = await client.get(f"/api/v1/clients/{client_id}", headers=_auth_headers(token_a))
+    assert client_after.json()["balance"] == "0.00"
+
+
+async def test_reject_transfer_reverses_reliquat_client_credit(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    cash_id = await _create_wallet(client, token_a, "CASH")
+    entry = await client.post(
+        "/api/v1/entries",
+        json={"lines": [{"wallet_id": cash_id, "amount": "85000", "currency": "GNF"}]},
+        headers=_auth_headers(token_a),
+    )
+    entry_id = entry.json()["id"]
+
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "entry_id": entry_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+            "reliquat_action": "client_credit",
+            "client_name": "Bhoye",
+            "client_phone": "+224600011188",
+        },
+        headers=_auth_headers(token_a),
+    )
+    transfer_id = create_response.json()["id"]
+    client_id = create_response.json()["client_id"]
+
+    clients_before = await client.get(f"/api/v1/clients/{client_id}", headers=_auth_headers(token_a))
+    assert clients_before.json()["balance"] == "-5000.00"
+
+    reject_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/reject",
+        json={"reason": "Bénéficiaire introuvable"},
+        headers=_auth_headers(token_b),
+    )
+    assert reject_response.status_code == 200
+
+    client_after = await client.get(f"/api/v1/clients/{client_id}", headers=_auth_headers(token_a))
+    assert client_after.json()["balance"] == "0.00"
+
+
 async def test_direct_transfer_without_entry_and_without_client_has_no_debt(client):
     collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
 

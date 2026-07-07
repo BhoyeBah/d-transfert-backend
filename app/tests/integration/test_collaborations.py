@@ -174,6 +174,30 @@ async def test_private_rate_versioning_deactivates_previous(client):
     assert inactive[0]["deactivated_at"] is not None
 
 
+async def test_rate_proposal_notifies_other_party(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/rate-proposals",
+        json={"new_rate": "20", "note": "Ajustement du marché"},
+        headers=_auth_headers(token_a),
+    )
+
+    notifications_b = await client.get("/api/v1/notifications", headers=_auth_headers(token_b))
+    types = [n["type"] for n in notifications_b.json()]
+    assert "rate_proposed" in types
+
+    notifications_a = await client.get("/api/v1/notifications", headers=_auth_headers(token_a))
+    assert "rate_proposed" not in [n["type"] for n in notifications_a.json()]
+
+
 async def test_rate_proposal_cross_acceptance_required(client):
     (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
     create_response = await client.post(

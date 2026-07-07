@@ -37,3 +37,16 @@ async def list_movements(session: AsyncSession, client_id: uuid.UUID) -> list[Cl
         .order_by(ClientBalanceMovement.created_at)
     )
     return list(result.scalars().all())
+
+
+async def get_by_source(
+    session: AsyncSession, client_id: uuid.UUID, source_type: str, source_id: uuid.UUID
+) -> list[ClientBalanceMovement]:
+    result = await session.execute(
+        select(ClientBalanceMovement).where(
+            ClientBalanceMovement.client_id == client_id,
+            ClientBalanceMovement.source_type == source_type,
+            ClientBalanceMovement.source_id == source_id,
+        )
+    )
+    return list(result.scalars().all())

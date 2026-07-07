@@ -1,10 +1,17 @@
 import uuid
+from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, Enum, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPKMixin
+
+
+class ProofStatus(StrEnum):
+    PENDING = "pending"
+    VALIDATED = "validated"
+    REJECTED = "rejected"
 
 
 class Proof(Base, UUIDPKMixin, TimestampMixin):
@@ -33,3 +40,6 @@ class Proof(Base, UUIDPKMixin, TimestampMixin):
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[ProofStatus] = mapped_column(
+        Enum(ProofStatus, native_enum=False, length=16), default=ProofStatus.PENDING, nullable=False
+    )

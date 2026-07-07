@@ -55,6 +55,29 @@ async def apply_balance_delta(
     return movement
 
 
+async def reverse_movements_for_source(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    client_id: uuid.UUID,
+    source_type: str,
+    source_id: uuid.UUID,
+    created_by_id: uuid.UUID,
+    note: str | None = None,
+) -> ClientBalanceMovement | None:
+    """Annule l'effet net déjà appliqué au client pour cette opération source (rejet/annulation),
+    sans supprimer l'historique : crée un mouvement inverse compensant exactement le delta net
+    déjà enregistré (dette initiale ou crédit de reliquat)."""
+    movements = await client_repository.get_by_source(session, client_id, source_type, source_id)
+    net = sum((movement.delta for movement in movements), Decimal("0.00"))
+    if net == 0:
+        return None
+    client = await get_client(session, company_id, client_id)
+    return await apply_balance_delta(
+        session, client, -net, source_type=f"{source_type}_reversal", source_id=source_id,
+        created_by_id=created_by_id, note=note,
+    )
+
+
 async def get_client(session: AsyncSession, company_id: uuid.UUID, client_id: uuid.UUID) -> Client:
     client = await client_repository.get_by_company_and_id(session, company_id, client_id)
     if client is None:

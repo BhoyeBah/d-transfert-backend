@@ -125,6 +125,74 @@ async def test_counterparty_can_upload_and_download_transfer_proof(client):
     assert download_response.headers["content-type"] == content_type
 
 
+async def test_proof_status_pending_then_validated_on_transfer_approval(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    transfer_id = await _create_transfer(client, collaboration_id, token_a)
+
+    name, content, content_type = _png_file()
+    upload_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": (name, content, content_type)},
+        headers=_auth_headers(token_a),
+    )
+    proof_id = upload_response.json()["id"]
+    assert upload_response.json()["status"] == "pending"
+
+    await client.post(f"/api/v1/transfers/{transfer_id}/approve", json={}, headers=_auth_headers(token_b))
+
+    list_response = await client.get(
+        f"/api/v1/transfers/{transfer_id}/proofs", headers=_auth_headers(token_a)
+    )
+    proof_after = next(p for p in list_response.json() if p["id"] == proof_id)
+    assert proof_after["status"] == "validated"
+
+
+async def test_proof_status_rejected_on_transfer_rejection(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    transfer_id = await _create_transfer(client, collaboration_id, token_a)
+
+    name, content, content_type = _png_file()
+    upload_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": (name, content, content_type)},
+        headers=_auth_headers(token_a),
+    )
+    proof_id = upload_response.json()["id"]
+
+    await client.post(
+        f"/api/v1/transfers/{transfer_id}/reject",
+        json={"reason": "Bénéficiaire introuvable"},
+        headers=_auth_headers(token_b),
+    )
+
+    list_response = await client.get(
+        f"/api/v1/transfers/{transfer_id}/proofs", headers=_auth_headers(token_a)
+    )
+    proof_after = next(p for p in list_response.json() if p["id"] == proof_id)
+    assert proof_after["status"] == "rejected"
+
+
+async def test_proof_status_validated_on_payment_approval(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    payment_id = await _create_payment(client, collaboration_id, token_a)
+
+    name, content, content_type = _png_file()
+    upload_response = await client.post(
+        f"/api/v1/payments/{payment_id}/proofs",
+        files={"file": (name, content, content_type)},
+        headers=_auth_headers(token_a),
+    )
+    proof_id = upload_response.json()["id"]
+
+    await client.post(f"/api/v1/payments/{payment_id}/approve", json={}, headers=_auth_headers(token_b))
+
+    list_response = await client.get(
+        f"/api/v1/payments/{payment_id}/proofs", headers=_auth_headers(token_a)
+    )
+    proof_after = next(p for p in list_response.json() if p["id"] == proof_id)
+    assert proof_after["status"] == "validated"
+
+
 async def test_third_party_cannot_upload_or_list_transfer_proofs(client):
     collaboration_id, (_, token_a), _ = await _setup_accepted_collaboration(client)
     transfer_id = await _create_transfer(client, collaboration_id, token_a)
