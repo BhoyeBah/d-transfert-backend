@@ -47,6 +47,8 @@ class CollaborationResponse(BaseModel):
     id: uuid.UUID
     initiator_company_id: uuid.UUID
     target_company_id: uuid.UUID
+    counterparty_company_name: str
+    counterparty_company_matricule: str
     currency: str
     status: CollaborationStatus
     note: str | None

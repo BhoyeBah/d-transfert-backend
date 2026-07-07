@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, require_permission
 from app.models.collaboration import Collaboration, CollaborationRateHistory
+from app.repositories import company_repository
 from app.schemas.collaboration import (
     CollaborationDecisionRequest,
     CollaborationRateHistoryResponse,
@@ -23,13 +24,25 @@ router = APIRouter(prefix="/api/v1/collaborations", tags=["collaborations"])
 _require_manage = require_permission(PermissionCode.COLLABORATION_MANAGE)
 
 
-def _to_response(
-    collaboration: Collaboration, current_rate: CollaborationRateHistory | None
+def _other_party(collaboration: Collaboration, company_id: uuid.UUID) -> uuid.UUID:
+    if collaboration.initiator_company_id == company_id:
+        return collaboration.target_company_id
+    return collaboration.initiator_company_id
+
+
+async def _to_response(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    collaboration: Collaboration,
+    current_rate: CollaborationRateHistory | None,
 ) -> CollaborationResponse:
+    counterparty = await company_repository.get_by_id(db, _other_party(collaboration, company_id))
     return CollaborationResponse(
         id=collaboration.id,
         initiator_company_id=collaboration.initiator_company_id,
         target_company_id=collaboration.target_company_id,
+        counterparty_company_name=counterparty.name if counterparty else "—",
+        counterparty_company_matricule=counterparty.registration_code if counterparty else "—",
         currency=collaboration.currency,
         status=collaboration.status,
         note=collaboration.note,
@@ -46,7 +59,7 @@ async def request_collaboration(
     _current_user: CurrentUser = Depends(_require_manage),
 ) -> CollaborationResponse:
     collaboration, _proposal = await collaboration_service.request_collaboration(db, company_id, payload)
-    return _to_response(collaboration, None)
+    return await _to_response(db, company_id, collaboration, None)
 
 
 @router.get("", response_model=list[CollaborationResponse])
@@ -56,7 +69,7 @@ async def list_collaborations(
     _current_user: CurrentUser = Depends(_require_manage),
 ) -> list[CollaborationResponse]:
     results = await collaboration_service.list_collaborations(db, company_id)
-    return [_to_response(collaboration, rate) for collaboration, rate in results]
+    return [await _to_response(db, company_id, collaboration, rate) for collaboration, rate in results]
 
 
 @router.get("/{collaboration_id}", response_model=CollaborationResponse)
@@ -67,7 +80,7 @@ async def get_collaboration(
     _current_user: CurrentUser = Depends(_require_manage),
 ) -> CollaborationResponse:
     collaboration, rate = await collaboration_service.get_collaboration(db, company_id, collaboration_id)
-    return _to_response(collaboration, rate)
+    return await _to_response(db, company_id, collaboration, rate)
 
 
 @router.post("/{collaboration_id}/accept", response_model=CollaborationResponse)
@@ -80,7 +93,7 @@ async def accept_collaboration(
     collaboration, rate = await collaboration_service.accept_collaboration(
         db, company_id, current_user.id, collaboration_id
     )
-    return _to_response(collaboration, rate)
+    return await _to_response(db, company_id, collaboration, rate)
 
 
 @router.post("/{collaboration_id}/reject", response_model=CollaborationResponse)
@@ -94,7 +107,7 @@ async def reject_collaboration(
     collaboration = await collaboration_service.reject_collaboration(
         db, company_id, current_user.id, collaboration_id, payload.reason
     )
-    return _to_response(collaboration, None)
+    return await _to_response(db, company_id, collaboration, None)
 
 
 @router.post(

@@ -7,6 +7,8 @@ from pydantic import BaseModel
 class CollaboratorBalanceSummary(BaseModel):
     collaboration_id: uuid.UUID
     collaborator_company_id: uuid.UUID
+    collaborator_company_name: str
+    collaborator_company_matricule: str
     currency: str
     balance: Decimal
 

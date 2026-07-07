@@ -16,6 +16,7 @@ from app.repositories import (
     client_repository,
     collaboration_repository,
     collaborator_balance_repository,
+    company_repository,
     entry_repository,
     national_operation_repository,
     notification_repository,
@@ -58,10 +59,16 @@ async def build_dashboard(session: AsyncSession, company_id: uuid.UUID) -> Dashb
         balance = await collaborator_balance_repository.get_balance_for_company(
             session, collaboration.id, company_id
         )
+        collaborator_company_id = _other_party(collaboration, company_id)
+        collaborator_company = await company_repository.get_by_id(session, collaborator_company_id)
         collaborator_balances.append(
             CollaboratorBalanceSummary(
                 collaboration_id=collaboration.id,
-                collaborator_company_id=_other_party(collaboration, company_id),
+                collaborator_company_id=collaborator_company_id,
+                collaborator_company_name=collaborator_company.name if collaborator_company else "—",
+                collaborator_company_matricule=(
+                    collaborator_company.registration_code if collaborator_company else "—"
+                ),
                 currency=collaboration.currency,
                 balance=balance,
             )
