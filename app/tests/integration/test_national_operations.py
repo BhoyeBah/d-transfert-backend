@@ -140,6 +140,23 @@ async def test_unbalanced_operation_rejected(client):
     assert response.status_code == 422
 
 
+async def test_same_wallet_on_two_lines_rejected(client):
+    owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="100000")
+
+    response = await client.post(
+        "/api/v1/national-operations/deposits",
+        json={
+            "lines": [
+                {"wallet_id": cash_id, "amount_in": "0", "amount_out": "10000", "currency": "XOF"},
+                {"wallet_id": cash_id, "amount_in": "10000", "amount_out": "0", "currency": "XOF"},
+            ]
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 422
+
+
 async def test_insufficient_balance_rejected(client):
     owner_token = await _register_and_login_owner(client)
     cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="5000")

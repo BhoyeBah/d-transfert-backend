@@ -43,6 +43,16 @@ class NationalOperationCreateRequest(BaseModel):
     lines: list[NationalOperationLineRequest] = Field(min_length=2)
 
     @model_validator(mode="after")
+    def _validate_distinct_wallets(self) -> "NationalOperationCreateRequest":
+        wallet_ids = [line.wallet_id for line in self.lines]
+        if len(set(wallet_ids)) != len(wallet_ids):
+            raise ValueError(
+                "Chaque ligne doit concerner un wallet différent : un dépôt, un retrait ou un échange "
+                "nécessite un wallet d'entrée et un wallet de sortie distincts."
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_balance_per_currency(self) -> "NationalOperationCreateRequest":
         totals: dict[str, Decimal] = {}
         for line in self.lines:
