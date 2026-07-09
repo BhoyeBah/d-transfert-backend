@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, require_permission
+from app.schemas.pagination import Page, PageParams, page_params
 from app.schemas.supplier import (
     SupplierBalanceMovementResponse,
     SupplierCreateRequest,
@@ -27,6 +28,18 @@ async def list_suppliers(
 ) -> list[SupplierResponse]:
     suppliers = await supplier_service.list_suppliers(db, company_id)
     return [SupplierResponse.model_validate(supplier, from_attributes=True) for supplier in suppliers]
+
+
+@router.get("/page", response_model=Page[SupplierResponse])
+async def list_suppliers_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[SupplierResponse]:
+    suppliers, total = await supplier_service.list_suppliers_page(db, company_id, params)
+    items = [SupplierResponse.model_validate(supplier, from_attributes=True) for supplier in suppliers]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.post("", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)

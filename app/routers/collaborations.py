@@ -16,6 +16,7 @@ from app.schemas.collaboration import (
     RateProposalCreateRequest,
     RateProposalDecisionRequest,
 )
+from app.schemas.pagination import Page, PageParams, page_params
 from app.schemas.transfer import CollaboratorBalanceResponse
 from app.services import collaboration_service
 
@@ -70,6 +71,18 @@ async def list_collaborations(
 ) -> list[CollaborationResponse]:
     results = await collaboration_service.list_collaborations(db, company_id)
     return [await _to_response(db, company_id, collaboration, rate) for collaboration, rate in results]
+
+
+@router.get("/page", response_model=Page[CollaborationResponse])
+async def list_collaborations_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[CollaborationResponse]:
+    results, total = await collaboration_service.list_collaborations_page(db, company_id, params)
+    items = [await _to_response(db, company_id, collaboration, rate) for collaboration, rate in results]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/{collaboration_id}", response_model=CollaborationResponse)

@@ -83,6 +83,27 @@ async def test_super_admin_can_list_and_suspend_companies(client, db_session):
     assert login_after_suspend.status_code == 401
 
 
+async def test_super_admin_can_paginate_search_sort_companies(client, db_session):
+    admin_token = await _create_super_admin_token(db_session)
+    await _register_and_login_owner(client, company_name="Zeta Corp", company_phone="+224900000201")
+    await _register_and_login_owner(client, company_name="Alpha Corp", company_phone="+224900000202")
+
+    response = await client.get(
+        "/api/v1/admin/companies/page",
+        params={"sort_by": "name", "sort_dir": "asc"},
+        headers=_auth_headers(admin_token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 2
+    assert [c["name"] for c in body["items"]] == ["Alpha Corp", "Zeta Corp"]
+
+    search_response = await client.get(
+        "/api/v1/admin/companies/page", params={"search": "zeta"}, headers=_auth_headers(admin_token)
+    )
+    assert search_response.json()["total"] == 1
+
+
 async def test_super_admin_can_view_platform_wide_audit_logs(client, db_session):
     _, owner_token = await _register_and_login_owner(client)
     admin_token = await _create_super_admin_token(db_session)
@@ -93,6 +114,23 @@ async def test_super_admin_can_view_platform_wide_audit_logs(client, db_session)
     assert "login" in actions
 
     forbidden = await client.get("/api/v1/admin/audit-logs", headers=_auth_headers(owner_token))
+    assert forbidden.status_code == 403
+
+
+async def test_super_admin_can_paginate_audit_logs(client, db_session):
+    _, owner_token = await _register_and_login_owner(client)
+    admin_token = await _create_super_admin_token(db_session)
+
+    response = await client.get(
+        "/api/v1/admin/audit-logs/page", params={"page_size": 1}, headers=_auth_headers(admin_token)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["page_size"] == 1
+    assert len(body["items"]) == 1
+    assert body["total"] >= 1
+
+    forbidden = await client.get("/api/v1/admin/audit-logs/page", headers=_auth_headers(owner_token))
     assert forbidden.status_code == 403
 
 
@@ -188,6 +226,28 @@ async def test_super_admin_can_view_system_logs_from_failed_login(client, db_ses
     assert any(log["source"] == "auth" for log in logs)
 
     forbidden = await client.get("/api/v1/admin/system-logs", headers=_auth_headers(owner_token))
+    assert forbidden.status_code == 403
+
+
+async def test_super_admin_can_paginate_system_logs(client, db_session):
+    matricule, owner_token = await _register_and_login_owner(client)
+    admin_token = await _create_super_admin_token(db_session)
+
+    bad_login = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": matricule, "password": "wrong-password"},
+    )
+    assert bad_login.status_code == 401
+
+    response = await client.get(
+        "/api/v1/admin/system-logs/page", params={"search": "auth"}, headers=_auth_headers(admin_token)
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] >= 1
+    assert all(log["source"] == "auth" for log in body["items"])
+
+    forbidden = await client.get("/api/v1/admin/system-logs/page", headers=_auth_headers(owner_token))
     assert forbidden.status_code == 403
 
 

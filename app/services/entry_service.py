@@ -12,6 +12,7 @@ from app.models.entry_line import EntryLine
 from app.models.wallet_movement import MovementDirection
 from app.repositories import entry_repository, wallet_repository
 from app.schemas.entry import EntryCreateRequest, EntryMergeRequest
+from app.schemas.pagination import PageParams
 from app.services import audit_service, wallet_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
 
@@ -148,6 +149,20 @@ async def list_entries(
         allocations = await entry_repository.get_allocations(session, entry.id)
         results.append((entry, lines, allocations))
     return results
+
+
+async def list_entries_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[tuple[Entry, list[EntryLine], list[EntryAllocation]]], int]:
+    entries, total = await entry_repository.list_by_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    results = []
+    for entry in entries:
+        lines = await entry_repository.get_lines(session, entry.id)
+        allocations = await entry_repository.get_allocations(session, entry.id)
+        results.append((entry, lines, allocations))
+    return results, total
 
 
 async def merge_entries(

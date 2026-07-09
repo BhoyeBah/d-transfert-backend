@@ -9,6 +9,7 @@ from app.models.supplier import Supplier
 from app.models.supplier_balance_movement import SupplierBalanceMovement, SupplierMovementType
 from app.models.wallet_movement import MovementDirection
 from app.repositories import supplier_repository, wallet_repository
+from app.schemas.pagination import PageParams
 from app.schemas.supplier import SupplierCreateRequest, SupplierRebalanceRequest
 from app.services import audit_service, wallet_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
@@ -63,6 +64,14 @@ async def get_supplier(session: AsyncSession, company_id: uuid.UUID, supplier_id
 
 async def list_suppliers(session: AsyncSession, company_id: uuid.UUID) -> list[Supplier]:
     return await supplier_repository.list_by_company(session, company_id)
+
+
+async def list_suppliers_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[Supplier], int]:
+    return await supplier_repository.list_by_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def get_movements(

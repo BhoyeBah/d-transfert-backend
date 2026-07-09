@@ -9,6 +9,7 @@ from app.models.role import OverrideEffect
 from app.models.user import User
 from app.repositories import role_repository, user_repository
 from app.schemas.employee import EmployeeCreateRequest, EmployeeResponse
+from app.schemas.pagination import PageParams
 from app.services import audit_service
 from app.utils.reference import generate_employee_matricule
 
@@ -78,6 +79,15 @@ async def create_employee(
 async def list_employees(db: AsyncSession, company_id: uuid.UUID) -> list[EmployeeResponse]:
     users = await user_repository.list_by_company(db, company_id)
     return [await _to_response(db, user) for user in users]
+
+
+async def list_employees_page(
+    db: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[EmployeeResponse], int]:
+    users, total = await user_repository.list_by_company_page(
+        db, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    return [await _to_response(db, user) for user in users], total
 
 
 async def update_permissions(

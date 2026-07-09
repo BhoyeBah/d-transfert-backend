@@ -1,10 +1,22 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.role import OverrideEffect, Permission, RolePermission, UserPermissionOverride
 from app.models.user import User
+from app.utils.pagination import paginate
+
+_SORTABLE_COLUMNS = {
+    "full_name": User.full_name,
+    "created_at": User.created_at,
+}
+
+_SUPER_ADMIN_SORTABLE_COLUMNS = {
+    "full_name": User.full_name,
+    "phone": User.phone,
+    "created_at": User.created_at,
+}
 
 
 async def get_by_company_and_id(session: AsyncSession, company_id: uuid.UUID, user_id: uuid.UUID) -> User | None:
@@ -64,6 +76,26 @@ async def list_by_company(session: AsyncSession, company_id: uuid.UUID) -> list[
     return list(result.scalars().all())
 
 
+async def list_by_company_page(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
+) -> tuple[list[User], int]:
+    stmt = select(User).where(User.company_id == company_id, User.is_owner.is_(False))
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(User.full_name.ilike(pattern), User.phone.ilike(pattern), User.matricule.ilike(pattern))
+        )
+    column = _SORTABLE_COLUMNS.get(sort_by, User.created_at)
+    stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+    return await paginate(session, stmt, page, page_size)
+
+
 async def count_employees_by_company(session: AsyncSession, company_id: uuid.UUID) -> int:
     result = await session.execute(
         select(func.count()).select_from(User).where(
@@ -91,6 +123,25 @@ async def list_super_admins(session: AsyncSession) -> list[User]:
         select(User).where(User.is_super_admin.is_(True)).order_by(User.created_at)
     )
     return list(result.scalars().all())
+
+
+async def list_super_admins_page(
+    session: AsyncSession,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
+) -> tuple[list[User], int]:
+    stmt = select(User).where(User.is_super_admin.is_(True))
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(User.full_name.ilike(pattern), User.phone.ilike(pattern), User.matricule.ilike(pattern))
+        )
+    column = _SUPER_ADMIN_SORTABLE_COLUMNS.get(sort_by, User.created_at)
+    stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+    return await paginate(session, stmt, page, page_size)
 
 
 async def get_super_admin_by_phone(session: AsyncSession, phone: str) -> User | None:

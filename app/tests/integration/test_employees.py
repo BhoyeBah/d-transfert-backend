@@ -139,6 +139,44 @@ async def test_owner_can_deactivate_employee_and_login_fails(client):
     assert login_response.status_code == 401
 
 
+async def test_employees_page_search_sort_pagination(client):
+    _, owner_token = await _register_and_login_owner(client)
+    for phone, name in [
+        ("+224611111112", "Alpha Diallo"),
+        ("+224611111113", "Beta Bah"),
+        ("+224611111114", "Gamma Sow"),
+    ]:
+        await client.post(
+            "/api/v1/employees",
+            json={
+                "full_name": name,
+                "phone": phone,
+                "password": "EmployeePass123!",
+                "permissions": [],
+            },
+            headers=_auth_headers(owner_token),
+        )
+
+    response = await client.get(
+        "/api/v1/employees/page",
+        params={"page": 1, "page_size": 2, "sort_by": "full_name", "sort_dir": "asc"},
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert [item["full_name"] for item in body["items"]] == ["Alpha Diallo", "Beta Bah"]
+
+    response = await client.get(
+        "/api/v1/employees/page", params={"search": "gamma"}, headers=_auth_headers(owner_token)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["full_name"] == "Gamma Sow"
+
+
 async def test_employee_list_is_isolated_between_companies(client):
     _, owner_a_token = await _register_and_login_owner(
         client, company_name="Entreprise A", company_phone="+224600000020"

@@ -20,6 +20,7 @@ from app.schemas.admin import (
 )
 from app.schemas.audit_log import AuditLogResponse
 from app.schemas.company import AdminCompanyStatusUpdateRequest, AdminCompanyUpdateRequest, CompanyMeResponse
+from app.schemas.pagination import Page, PageParams, page_params
 from app.services import admin_service, audit_service
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
@@ -46,6 +47,17 @@ async def list_companies(
 ) -> list[CompanyMeResponse]:
     companies = await admin_service.list_companies(db)
     return [CompanyMeResponse.model_validate(company, from_attributes=True) for company in companies]
+
+
+@router.get("/companies/page", response_model=Page[CompanyMeResponse])
+async def list_companies_page(
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_super_admin),
+) -> Page[CompanyMeResponse]:
+    companies, total = await admin_service.list_companies_page(db, params)
+    items = [CompanyMeResponse.model_validate(company, from_attributes=True) for company in companies]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/companies/{company_id}", response_model=AdminCompanyDetailResponse)
@@ -106,6 +118,16 @@ async def list_platform_admins(
     return await admin_service.list_platform_admins(db)
 
 
+@router.get("/platform-admins/page", response_model=Page[AdminUserResponse])
+async def list_platform_admins_page(
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_super_admin),
+) -> Page[AdminUserResponse]:
+    items, total = await admin_service.list_platform_admins_page(db, params)
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
+
+
 @router.post("/platform-admins", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED)
 async def create_platform_admin(
     payload: PlatformAdminCreateRequest,
@@ -143,12 +165,33 @@ async def list_all_audit_logs(
     return [AuditLogResponse.model_validate(log, from_attributes=True) for log in logs]
 
 
+@router.get("/audit-logs/page", response_model=Page[AuditLogResponse])
+async def list_all_audit_logs_page(
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_super_admin),
+) -> Page[AuditLogResponse]:
+    logs, total = await audit_service.list_all_page(db, params)
+    items = [AuditLogResponse.model_validate(log, from_attributes=True) for log in logs]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
+
+
 @router.get("/system-logs", response_model=list[SystemLogResponse])
 async def list_system_logs(
     db: AsyncSession = Depends(get_db),
     _current_user: CurrentUser = Depends(_require_super_admin),
 ) -> list[SystemLogResponse]:
     return await admin_service.list_system_logs(db)
+
+
+@router.get("/system-logs/page", response_model=Page[SystemLogResponse])
+async def list_system_logs_page(
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_super_admin),
+) -> Page[SystemLogResponse]:
+    items, total = await admin_service.list_system_logs_page(db, params)
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/settings", response_model=PlatformSettingsResponse)

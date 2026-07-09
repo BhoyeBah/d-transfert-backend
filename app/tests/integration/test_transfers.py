@@ -779,3 +779,39 @@ async def test_employee_permission_gating(client):
         headers=_auth_headers(employee_token),
     )
     assert response.status_code == 403
+
+
+async def test_transfers_page_search_sort_pagination(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+
+    for phone, amount in [("+224600000001", "1000"), ("+224600000002", "2000"), ("+224600000003", "3000")]:
+        await client.post(
+            "/api/v1/transfers",
+            json={
+                "collaboration_id": collaboration_id,
+                "amount": amount,
+                "currency": "GNF",
+                "beneficiary_phone": phone,
+                "send_mode": "cash",
+            },
+            headers=_auth_headers(token_a),
+        )
+
+    response = await client.get(
+        "/api/v1/transfers/page",
+        params={"page": 1, "page_size": 2, "sort_by": "amount", "sort_dir": "asc"},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert [item["amount"] for item in body["items"]] == ["1000.00", "2000.00"]
+
+    response = await client.get(
+        "/api/v1/transfers/page", params={"search": "600000002"}, headers=_auth_headers(token_a)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["beneficiary_phone"] == "+224600000002"

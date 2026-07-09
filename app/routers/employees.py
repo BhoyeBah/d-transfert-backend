@@ -12,6 +12,7 @@ from app.schemas.employee import (
     EmployeeResponse,
     EmployeeStatusUpdateRequest,
 )
+from app.schemas.pagination import Page, PageParams, page_params
 from app.services import employee_service
 
 router = APIRouter(prefix="/api/v1/employees", tags=["employees"])
@@ -26,6 +27,17 @@ async def list_employees(
     _current_user: CurrentUser = Depends(_require_manage),
 ) -> list[EmployeeResponse]:
     return await employee_service.list_employees(db, company_id)
+
+
+@router.get("/page", response_model=Page[EmployeeResponse])
+async def list_employees_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[EmployeeResponse]:
+    items, total = await employee_service.list_employees_page(db, company_id, params)
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)

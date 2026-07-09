@@ -16,6 +16,7 @@ from app.schemas.entry import (
     EntryMergeRequest,
     EntryResponse,
 )
+from app.schemas.pagination import Page, PageParams, page_params
 from app.services import entry_service
 
 router = APIRouter(prefix="/api/v1/entries", tags=["entries"])
@@ -64,6 +65,18 @@ async def list_entries(
 ) -> list[EntryResponse]:
     results = await entry_service.list_entries(db, company_id)
     return [_to_response(entry, lines, allocations) for entry, lines, allocations in results]
+
+
+@router.get("/page", response_model=Page[EntryResponse])
+async def list_entries_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[EntryResponse]:
+    results, total = await entry_service.list_entries_page(db, company_id, params)
+    items = [_to_response(entry, lines, allocations) for entry, lines, allocations in results]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/{entry_id}", response_model=EntryResponse)

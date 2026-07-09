@@ -1,10 +1,16 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.national_operation import NationalOperation
 from app.models.national_operation_line import NationalOperationLine
+from app.utils.pagination import paginate
+
+_SORTABLE_COLUMNS = {
+    "reference": NationalOperation.reference,
+    "created_at": NationalOperation.created_at,
+}
 
 
 async def get_by_company_and_reference(
@@ -48,6 +54,30 @@ async def list_by_company(session: AsyncSession, company_id: uuid.UUID) -> list[
         .order_by(NationalOperation.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_by_company_page(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
+) -> tuple[list[NationalOperation], int]:
+    stmt = select(NationalOperation).where(NationalOperation.company_id == company_id)
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                NationalOperation.reference.ilike(pattern),
+                NationalOperation.client_name.ilike(pattern),
+                NationalOperation.client_phone.ilike(pattern),
+            )
+        )
+    column = _SORTABLE_COLUMNS.get(sort_by, NationalOperation.created_at)
+    stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+    return await paginate(session, stmt, page, page_size)
 
 
 async def get_lines(session: AsyncSession, operation_id: uuid.UUID) -> list[NationalOperationLine]:

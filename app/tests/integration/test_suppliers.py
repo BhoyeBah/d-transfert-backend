@@ -167,6 +167,35 @@ async def test_supplier_isolated_between_companies(client):
     assert response.json() == []
 
 
+async def test_suppliers_page_search_sort_pagination(client):
+    _, token = await _register_and_login_owner(client)
+    for code, name in [("SUPA", "Alpha Fournisseur"), ("SUPB", "Beta Fournisseur"), ("SUPC", "Gamma Fournisseur")]:
+        await client.post(
+            "/api/v1/suppliers",
+            json={"name": name, "code": code, "currency": "GNF"},
+            headers=_auth_headers(token),
+        )
+
+    response = await client.get(
+        "/api/v1/suppliers/page",
+        params={"page": 1, "page_size": 2, "sort_by": "name", "sort_dir": "asc"},
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert [item["name"] for item in body["items"]] == ["Alpha Fournisseur", "Beta Fournisseur"]
+
+    response = await client.get(
+        "/api/v1/suppliers/page", params={"search": "gamma"}, headers=_auth_headers(token)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["code"] == "SUPC"
+
+
 async def test_employee_without_permission_forbidden(client):
     _, token = await _register_and_login_owner(client)
     create_response = await client.post(

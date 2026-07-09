@@ -14,6 +14,7 @@ from app.models.collaboration import (
 from app.models.notification import NotificationType
 from app.repositories import collaboration_repository, collaborator_balance_repository, company_repository
 from app.schemas.collaboration import CollaborationRequestCreate
+from app.schemas.pagination import PageParams
 from app.services import audit_service, notification_service
 
 
@@ -285,6 +286,16 @@ async def list_collaborations(
 ) -> list[tuple[Collaboration, CollaborationRateHistory | None]]:
     collaborations = await collaboration_repository.list_for_company(session, company_id)
     return [(collaboration, await _current_rate_of(session, collaboration)) for collaboration in collaborations]
+
+
+async def list_collaborations_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[tuple[Collaboration, CollaborationRateHistory | None]], int]:
+    collaborations, total = await collaboration_repository.list_for_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    results = [(collaboration, await _current_rate_of(session, collaboration)) for collaboration in collaborations]
+    return results, total
 
 
 async def get_rate_history(

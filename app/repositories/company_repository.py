@@ -1,9 +1,17 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import Company, CompanyStatus
+from app.utils.pagination import paginate
+
+_SORTABLE_COLUMNS = {
+    "name": Company.name,
+    "registration_code": Company.registration_code,
+    "status": Company.status,
+    "created_at": Company.created_at,
+}
 
 
 async def get_by_id(session: AsyncSession, company_id: uuid.UUID) -> Company | None:
@@ -23,6 +31,29 @@ async def get_by_phone(session: AsyncSession, phone: str) -> Company | None:
 async def list_all(session: AsyncSession) -> list[Company]:
     result = await session.execute(select(Company).order_by(Company.created_at.desc()))
     return list(result.scalars().all())
+
+
+async def list_all_page(
+    session: AsyncSession,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
+) -> tuple[list[Company], int]:
+    stmt = select(Company)
+    if search:
+        pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                Company.name.ilike(pattern),
+                Company.registration_code.ilike(pattern),
+                Company.phone.ilike(pattern),
+            )
+        )
+    column = _SORTABLE_COLUMNS.get(sort_by, Company.created_at)
+    stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+    return await paginate(session, stmt, page, page_size)
 
 
 async def count_by_status(session: AsyncSession) -> dict[CompanyStatus, int]:

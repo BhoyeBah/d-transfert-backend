@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, require_permission
 from app.schemas.client import ClientBalanceMovementResponse, ClientCreateRequest, ClientResponse
+from app.schemas.pagination import Page, PageParams, page_params
 from app.services import client_service
 
 router = APIRouter(prefix="/api/v1/clients", tags=["clients"])
@@ -22,6 +23,18 @@ async def list_clients(
 ) -> list[ClientResponse]:
     clients = await client_service.list_clients(db, company_id)
     return [ClientResponse.model_validate(client, from_attributes=True) for client in clients]
+
+
+@router.get("/page", response_model=Page[ClientResponse])
+async def list_clients_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[ClientResponse]:
+    clients, total = await client_service.list_clients_page(db, company_id, params)
+    items = [ClientResponse.model_validate(client, from_attributes=True) for client in clients]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.post("", response_model=ClientResponse, status_code=status.HTTP_201_CREATED)

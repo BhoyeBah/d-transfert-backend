@@ -392,3 +392,37 @@ async def test_entries_isolated_between_companies(client):
     response = await client.get("/api/v1/entries", headers=_auth_headers(owner_b_token))
     assert response.status_code == 200
     assert response.json() == []
+
+
+async def test_entries_page_search_sort_pagination(client):
+    _, owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH")
+
+    for client_name in ["Alice", "Bob", "Charlie"]:
+        await client.post(
+            "/api/v1/entries",
+            json={
+                "client_name": client_name,
+                "lines": [{"wallet_id": cash_id, "amount": "1000", "currency": "GNF"}],
+            },
+            headers=_auth_headers(owner_token),
+        )
+
+    response = await client.get(
+        "/api/v1/entries/page",
+        params={"page": 1, "page_size": 2, "sort_by": "reference", "sort_dir": "asc"},
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert len(body["items"]) == 2
+
+    response = await client.get(
+        "/api/v1/entries/page", params={"search": "bob"}, headers=_auth_headers(owner_token)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["client_name"] == "Bob"

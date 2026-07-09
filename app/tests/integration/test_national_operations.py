@@ -463,3 +463,41 @@ async def test_reference_sequence_is_isolated_per_company(client):
     assert response_b.status_code == 201
     assert response_a.json()["reference"] == f"{today_prefix}0001"
     assert response_b.json()["reference"] == f"{today_prefix}0001"
+
+
+async def test_national_operations_page_search_sort_pagination(client):
+    owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="100000")
+    wave_id = await _create_wallet(client, owner_token, "WAVE")
+
+    for client_name in ["Alice", "Bob", "Charlie"]:
+        await client.post(
+            "/api/v1/national-operations/deposits",
+            json={
+                "client_name": client_name,
+                "lines": [
+                    {"wallet_id": cash_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                    {"wallet_id": wave_id, "amount_in": "1000", "amount_out": "0", "currency": "XOF"},
+                ],
+            },
+            headers=_auth_headers(owner_token),
+        )
+
+    response = await client.get(
+        "/api/v1/national-operations/page",
+        params={"page": 1, "page_size": 2, "sort_by": "reference", "sort_dir": "asc"},
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert len(body["items"]) == 2
+
+    response = await client.get(
+        "/api/v1/national-operations/page", params={"search": "bob"}, headers=_auth_headers(owner_token)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["client_name"] == "Bob"

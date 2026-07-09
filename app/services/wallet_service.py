@@ -7,6 +7,7 @@ from app.core.exceptions import ConflictError, InsufficientBalanceError, NotFoun
 from app.models.wallet import Wallet, WalletStatus
 from app.models.wallet_movement import MovementDirection, WalletMovement
 from app.repositories import wallet_movement_repository, wallet_repository
+from app.schemas.pagination import PageParams
 from app.schemas.wallet import WalletCreateRequest, WalletUpdateRequest
 from app.services import audit_service
 
@@ -97,6 +98,14 @@ async def create_wallet(
 
 async def list_wallets(session: AsyncSession, company_id: uuid.UUID) -> list[Wallet]:
     return await wallet_repository.list_by_company(session, company_id)
+
+
+async def list_wallets_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[Wallet], int]:
+    return await wallet_repository.list_by_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def get_wallet(session: AsyncSession, company_id: uuid.UUID, wallet_id: uuid.UUID) -> Wallet:

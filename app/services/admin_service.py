@@ -33,6 +33,7 @@ from app.schemas.admin import (
     SystemLogResponse,
 )
 from app.schemas.company import AdminCompanyUpdateRequest
+from app.schemas.pagination import PageParams
 from app.services import audit_service
 from app.utils.reference import generate_platform_admin_matricule
 
@@ -64,6 +65,12 @@ def _subscription_to_response(subscription: Subscription) -> SubscriptionRespons
 
 async def list_companies(session: AsyncSession) -> list[Company]:
     return await company_repository.list_all(session)
+
+
+async def list_companies_page(session: AsyncSession, params: PageParams) -> tuple[list[Company], int]:
+    return await company_repository.list_all_page(
+        session, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def set_company_status(
@@ -181,6 +188,15 @@ async def list_platform_admins(session: AsyncSession) -> list[AdminUserResponse]
     return [_user_to_response(admin) for admin in admins]
 
 
+async def list_platform_admins_page(
+    session: AsyncSession, params: PageParams
+) -> tuple[list[AdminUserResponse], int]:
+    admins, total = await user_repository.list_super_admins_page(
+        session, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    return [_user_to_response(admin) for admin in admins], total
+
+
 async def create_platform_admin(
     session: AsyncSession, acted_by_user_id: uuid.UUID, payload: PlatformAdminCreateRequest
 ) -> AdminUserResponse:
@@ -263,6 +279,26 @@ async def list_system_logs(session: AsyncSession) -> list[SystemLogResponse]:
         )
         for log in logs
     ]
+
+
+async def list_system_logs_page(
+    session: AsyncSession, params: PageParams
+) -> tuple[list[SystemLogResponse], int]:
+    logs, total = await system_log_repository.list_page(
+        session, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    return [
+        SystemLogResponse(
+            id=log.id,
+            level=log.level,
+            source=log.source,
+            message=log.message,
+            company_id=log.company_id,
+            user_id=log.user_id,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ], total
 
 
 async def get_settings(session: AsyncSession) -> PlatformSettingsResponse:

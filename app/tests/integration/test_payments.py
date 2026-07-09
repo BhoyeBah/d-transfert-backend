@@ -586,3 +586,39 @@ async def test_employee_permission_gating(client):
         headers=_auth_headers(employee_token),
     )
     assert response.status_code == 403
+
+
+async def test_payments_page_search_sort_pagination(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+
+    for client_name, amount in [("Alice", "1000"), ("Bob", "2000"), ("Charlie", "3000")]:
+        await client.post(
+            "/api/v1/payments",
+            json={
+                "collaboration_id": collaboration_id,
+                "amount": amount,
+                "currency": "GNF",
+                "client_name": client_name,
+                "client_phone": "+224600000000",
+            },
+            headers=_auth_headers(token_a),
+        )
+
+    response = await client.get(
+        "/api/v1/payments/page",
+        params={"page": 1, "page_size": 2, "sort_by": "amount", "sort_dir": "asc"},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert [item["amount"] for item in body["items"]] == ["1000.00", "2000.00"]
+
+    response = await client.get(
+        "/api/v1/payments/page", params={"search": "bob"}, headers=_auth_headers(token_a)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["client_name"] == "Bob"

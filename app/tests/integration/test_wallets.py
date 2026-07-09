@@ -106,6 +106,34 @@ async def test_update_and_deactivate_wallet(client):
     assert status_response.json()["status"] == "inactive"
 
 
+async def test_wallets_page_search_sort_pagination(client):
+    owner_token = await _register_and_login_owner(client)
+    for code, name in [("CASH", "Caisse Alpha"), ("WAVE", "Wave Beta"), ("BANK", "Banque Gamma")]:
+        await client.post(
+            "/api/v1/wallets",
+            json={"name": name, "code": code, "type": "cash", "currency": "GNF", "initial_balance": "0"},
+            headers=_auth_headers(owner_token),
+        )
+
+    response = await client.get(
+        "/api/v1/wallets/page", params={"page": 1, "page_size": 2, "sort_by": "name", "sort_dir": "asc"},
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["page_size"] == 2
+    assert [item["name"] for item in body["items"]] == ["Banque Gamma", "Caisse Alpha"]
+
+    response = await client.get(
+        "/api/v1/wallets/page", params={"search": "wave"}, headers=_auth_headers(owner_token)
+    )
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["code"] == "WAVE"
+
+
 async def test_employee_without_wallet_permission_forbidden(client):
     owner_token = await _register_and_login_owner(client)
     create_response = await client.post(

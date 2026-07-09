@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.exceptions import PermissionDeniedError
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, get_current_user, require_permission
+from app.schemas.pagination import Page, PageParams, page_params
 from app.schemas.payment import (
     PaymentApproveRequest,
     PaymentCreateRequest,
@@ -56,6 +57,18 @@ async def list_payments(
 ) -> list[PaymentResponse]:
     payments = await payment_service.list_payments(db, company_id)
     return [PaymentResponse.model_validate(payment, from_attributes=True) for payment in payments]
+
+
+@router.get("/page", response_model=Page[PaymentResponse])
+async def list_payments_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_view_access),
+) -> Page[PaymentResponse]:
+    payments, total = await payment_service.list_payments_page(db, company_id, params)
+    items = [PaymentResponse.model_validate(payment, from_attributes=True) for payment in payments]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/{payment_id}", response_model=PaymentResponse)

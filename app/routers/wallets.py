@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
 from app.core.permissions import CurrentUser, get_company_scope, require_permission
+from app.schemas.pagination import Page, PageParams, page_params
 from app.schemas.wallet import (
     WalletCreateRequest,
     WalletMovementResponse,
@@ -25,6 +26,17 @@ async def list_wallets(
     _current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
 ) -> list[WalletResponse]:
     return await wallet_service.list_wallets(db, company_id)
+
+
+@router.get("/page", response_model=Page[WalletResponse])
+async def list_wallets_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(require_permission(PermissionCode.WALLET_MANAGE)),
+) -> Page[WalletResponse]:
+    items, total = await wallet_service.list_wallets_page(db, company_id, params)
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.post("", response_model=WalletResponse, status_code=status.HTTP_201_CREATED)

@@ -18,6 +18,7 @@ from app.repositories import (
     proof_repository,
     transfer_repository,
 )
+from app.schemas.pagination import PageParams
 from app.schemas.transfer import TransferCreateRequest
 from app.services import audit_service, client_service, entry_service, notification_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
@@ -423,6 +424,14 @@ async def get_transfer(session: AsyncSession, company_id: uuid.UUID, transfer_id
 
 async def list_transfers(session: AsyncSession, company_id: uuid.UUID) -> list[Transfer]:
     return await transfer_repository.list_for_company(session, company_id)
+
+
+async def list_transfers_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[Transfer], int]:
+    return await transfer_repository.list_for_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def get_status_history(

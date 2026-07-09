@@ -19,6 +19,7 @@ from app.repositories import (
     proof_repository,
     wallet_repository,
 )
+from app.schemas.pagination import PageParams
 from app.schemas.payment import PaymentCreateRequest
 from app.services import audit_service, client_service, entry_service, notification_service, wallet_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
@@ -439,6 +440,14 @@ async def get_payment(session: AsyncSession, company_id: uuid.UUID, payment_id: 
 
 async def list_payments(session: AsyncSession, company_id: uuid.UUID) -> list[Payment]:
     return await payment_repository.list_for_company(session, company_id)
+
+
+async def list_payments_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[Payment], int]:
+    return await payment_repository.list_for_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def get_status_history(

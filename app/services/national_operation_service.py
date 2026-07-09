@@ -9,6 +9,7 @@ from app.models.national_operation_line import NationalOperationLine
 from app.models.wallet_movement import MovementDirection
 from app.repositories import national_operation_repository, wallet_repository
 from app.schemas.national_operation import NationalOperationCreateRequest
+from app.schemas.pagination import PageParams
 from app.services import audit_service, wallet_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
 
@@ -132,6 +133,16 @@ async def list_operations(
 ) -> list[tuple[NationalOperation, list[NationalOperationLine]]]:
     operations = await national_operation_repository.list_by_company(session, company_id)
     return [(op, await national_operation_repository.get_lines(session, op.id)) for op in operations]
+
+
+async def list_operations_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[tuple[NationalOperation, list[NationalOperationLine]]], int]:
+    operations, total = await national_operation_repository.list_by_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
+    results = [(op, await national_operation_repository.get_lines(session, op.id)) for op in operations]
+    return results, total
 
 
 async def cancel_operation(

@@ -7,6 +7,7 @@ from app.core.exceptions import NotFoundError
 from app.models.client import Client
 from app.models.client_balance_movement import ClientBalanceMovement
 from app.repositories import client_repository
+from app.schemas.pagination import PageParams
 
 _CENTS = Decimal("0.01")
 
@@ -87,6 +88,14 @@ async def get_client(session: AsyncSession, company_id: uuid.UUID, client_id: uu
 
 async def list_clients(session: AsyncSession, company_id: uuid.UUID) -> list[Client]:
     return await client_repository.list_by_company(session, company_id)
+
+
+async def list_clients_page(
+    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+) -> tuple[list[Client], int]:
+    return await client_repository.list_by_company_page(
+        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+    )
 
 
 async def get_movements(

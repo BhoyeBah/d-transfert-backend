@@ -13,6 +13,7 @@ from app.schemas.national_operation import (
     NationalOperationLineResponse,
     NationalOperationResponse,
 )
+from app.schemas.pagination import Page, PageParams, page_params
 from app.services import national_operation_service
 
 router = APIRouter(prefix="/api/v1/national-operations", tags=["national-operations"])
@@ -105,6 +106,18 @@ async def list_operations(
 ) -> list[NationalOperationResponse]:
     results = await national_operation_service.list_operations(db, company_id)
     return [_to_response(operation, lines) for operation, lines in results]
+
+
+@router.get("/page", response_model=Page[NationalOperationResponse])
+async def list_operations_page(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    params: PageParams = Depends(page_params),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> Page[NationalOperationResponse]:
+    results, total = await national_operation_service.list_operations_page(db, company_id, params)
+    items = [_to_response(operation, lines) for operation, lines in results]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.get("/{operation_id}", response_model=NationalOperationResponse)

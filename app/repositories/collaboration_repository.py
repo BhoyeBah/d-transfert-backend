@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.collaboration import (
     Collaboration,
@@ -9,6 +10,14 @@ from app.models.collaboration import (
     CollaborationStatus,
     RateProposalStatus,
 )
+from app.models.company import Company
+from app.utils.pagination import paginate
+
+_SORTABLE_COLUMNS = {
+    "currency": Collaboration.currency,
+    "status": Collaboration.status,
+    "created_at": Collaboration.created_at,
+}
 
 
 async def get_by_id(session: AsyncSession, collaboration_id: uuid.UUID) -> Collaboration | None:
@@ -44,6 +53,41 @@ async def list_for_company(session: AsyncSession, company_id: uuid.UUID) -> list
         .order_by(Collaboration.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def list_for_company_page(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    page: int,
+    page_size: int,
+    search: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
+) -> tuple[list[Collaboration], int]:
+    stmt = select(Collaboration).where(
+        or_(
+            Collaboration.initiator_company_id == company_id,
+            Collaboration.target_company_id == company_id,
+        )
+    )
+    if search:
+        pattern = f"%{search}%"
+        initiator = aliased(Company)
+        target = aliased(Company)
+        stmt = (
+            stmt.join(initiator, initiator.id == Collaboration.initiator_company_id)
+            .join(target, target.id == Collaboration.target_company_id)
+            .where(
+                or_(
+                    initiator.name.ilike(pattern),
+                    target.name.ilike(pattern),
+                    Collaboration.currency.ilike(pattern),
+                )
+            )
+        )
+    column = _SORTABLE_COLUMNS.get(sort_by, Collaboration.created_at)
+    stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
+    return await paginate(session, stmt, page, page_size)
 
 
 async def get_rate_by_id(
