@@ -1,7 +1,7 @@
 import uuid
 from enum import StrEnum
 
-from sqlalchemy import Enum, ForeignKey, String
+from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -19,11 +19,12 @@ class EntryStatus(StrEnum):
 
 class Entry(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "entries"
+    __table_args__ = (UniqueConstraint("company_id", "reference", name="uq_entries_company_reference"),)
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    reference: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     client_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     client_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)

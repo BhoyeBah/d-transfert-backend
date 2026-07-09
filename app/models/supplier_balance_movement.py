@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String
+from sqlalchemy import Enum, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,11 +16,17 @@ class SupplierMovementType(StrEnum):
 
 class SupplierBalanceMovement(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "supplier_balance_movements"
+    __table_args__ = (
+        UniqueConstraint("company_id", "reference", name="uq_supplier_balance_movements_company_reference"),
+    )
 
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     supplier_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("suppliers.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    reference: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     wallet_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("wallets.id", ondelete="RESTRICT"), nullable=False
     )

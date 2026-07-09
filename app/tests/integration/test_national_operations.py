@@ -394,3 +394,72 @@ async def test_employee_without_permission_forbidden(client):
         "/api/v1/national-operations", headers=_auth_headers(employee_token)
     )
     assert response.status_code == 403
+
+
+async def test_reference_is_daily_sequential_per_company(client):
+    from datetime import date
+
+    owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH", initial_balance="20000")
+    wave_id = await _create_wallet(client, owner_token, "WAVE", initial_balance="0")
+
+    today_prefix = f"OP-{date.today():%d-%m-%y}-"
+    references = []
+    for _ in range(2):
+        response = await client.post(
+            "/api/v1/national-operations/deposits",
+            json={
+                "lines": [
+                    {"wallet_id": cash_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                    {"wallet_id": wave_id, "amount_in": "1000", "amount_out": "0", "currency": "XOF"},
+                ],
+            },
+            headers=_auth_headers(owner_token),
+        )
+        assert response.status_code == 201
+        references.append(response.json()["reference"])
+
+    assert references[0] == f"{today_prefix}0001"
+    assert references[1] == f"{today_prefix}0002"
+
+
+async def test_reference_sequence_is_isolated_per_company(client):
+    from datetime import date
+
+    owner_a_token = await _register_and_login_owner(
+        client, company_name="Entreprise A Ref", company_phone="+224800000101"
+    )
+    owner_b_token = await _register_and_login_owner(
+        client, company_name="Entreprise B Ref", company_phone="+224800000102"
+    )
+    cash_a_id = await _create_wallet(client, owner_a_token, "CASH", initial_balance="20000")
+    wave_a_id = await _create_wallet(client, owner_a_token, "WAVE", initial_balance="0")
+    cash_b_id = await _create_wallet(client, owner_b_token, "CASH", initial_balance="20000")
+    wave_b_id = await _create_wallet(client, owner_b_token, "WAVE", initial_balance="0")
+
+    today_prefix = f"OP-{date.today():%d-%m-%y}-"
+
+    response_a = await client.post(
+        "/api/v1/national-operations/deposits",
+        json={
+            "lines": [
+                {"wallet_id": cash_a_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": wave_a_id, "amount_in": "1000", "amount_out": "0", "currency": "XOF"},
+            ],
+        },
+        headers=_auth_headers(owner_a_token),
+    )
+    response_b = await client.post(
+        "/api/v1/national-operations/deposits",
+        json={
+            "lines": [
+                {"wallet_id": cash_b_id, "amount_in": "0", "amount_out": "1000", "currency": "XOF"},
+                {"wallet_id": wave_b_id, "amount_in": "1000", "amount_out": "0", "currency": "XOF"},
+            ],
+        },
+        headers=_auth_headers(owner_b_token),
+    )
+    assert response_a.status_code == 201
+    assert response_b.status_code == 201
+    assert response_a.json()["reference"] == f"{today_prefix}0001"
+    assert response_b.json()["reference"] == f"{today_prefix}0001"

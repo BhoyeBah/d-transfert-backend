@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,11 +27,12 @@ class NationalOperationStatus(StrEnum):
 
 class NationalOperation(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "national_operations"
+    __table_args__ = (UniqueConstraint("company_id", "reference", name="uq_national_operations_company_reference"),)
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    reference: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     type: Mapped[NationalOperationType] = mapped_column(
         Enum(NationalOperationType, native_enum=False, length=16), nullable=False
     )

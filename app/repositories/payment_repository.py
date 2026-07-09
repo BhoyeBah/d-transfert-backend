@@ -8,9 +8,24 @@ from app.models.collaboration import Collaboration
 from app.models.payment import Payment, PaymentStatusHistory
 
 
-async def get_by_reference(session: AsyncSession, reference: str) -> Payment | None:
-    result = await session.execute(select(Payment).where(Payment.reference == reference))
+async def get_by_company_and_reference(
+    session: AsyncSession, company_id: uuid.UUID, reference: str
+) -> Payment | None:
+    result = await session.execute(
+        select(Payment).where(Payment.company_id == company_id, Payment.reference == reference)
+    )
     return result.scalar_one_or_none()
+
+
+async def count_by_company_and_reference_prefix(
+    session: AsyncSession, company_id: uuid.UUID, prefix: str
+) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(Payment).where(
+            Payment.company_id == company_id, Payment.reference.like(f"{prefix}%")
+        )
+    )
+    return int(result.scalar_one())
 
 
 async def get_by_id(session: AsyncSession, payment_id: uuid.UUID) -> Payment | None:

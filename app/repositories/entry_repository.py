@@ -8,9 +8,24 @@ from app.models.entry_allocation import EntryAllocation, EntryAllocationTargetTy
 from app.models.entry_line import EntryLine
 
 
-async def get_by_reference(session: AsyncSession, reference: str) -> Entry | None:
-    result = await session.execute(select(Entry).where(Entry.reference == reference))
+async def get_by_company_and_reference(
+    session: AsyncSession, company_id: uuid.UUID, reference: str
+) -> Entry | None:
+    result = await session.execute(
+        select(Entry).where(Entry.company_id == company_id, Entry.reference == reference)
+    )
     return result.scalar_one_or_none()
+
+
+async def count_by_company_and_reference_prefix(
+    session: AsyncSession, company_id: uuid.UUID, prefix: str
+) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(Entry).where(
+            Entry.company_id == company_id, Entry.reference.like(f"{prefix}%")
+        )
+    )
+    return int(result.scalar_one())
 
 
 async def get_by_company_and_id(

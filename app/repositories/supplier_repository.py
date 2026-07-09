@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.supplier import Supplier
@@ -30,11 +30,25 @@ async def list_by_company(session: AsyncSession, company_id: uuid.UUID) -> list[
     return list(result.scalars().all())
 
 
-async def get_by_reference(session: AsyncSession, reference: str) -> SupplierBalanceMovement | None:
+async def get_by_company_and_reference(
+    session: AsyncSession, company_id: uuid.UUID, reference: str
+) -> SupplierBalanceMovement | None:
     result = await session.execute(
-        select(SupplierBalanceMovement).where(SupplierBalanceMovement.reference == reference)
+        select(SupplierBalanceMovement).where(
+            SupplierBalanceMovement.company_id == company_id, SupplierBalanceMovement.reference == reference
+        )
     )
     return result.scalar_one_or_none()
+
+
+async def count_by_company_and_reference_prefix(session: AsyncSession, company_id: uuid.UUID, prefix: str) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(SupplierBalanceMovement).where(
+            SupplierBalanceMovement.company_id == company_id,
+            SupplierBalanceMovement.reference.like(f"{prefix}%"),
+        )
+    )
+    return int(result.scalar_one())
 
 
 async def list_movements(session: AsyncSession, supplier_id: uuid.UUID) -> list[SupplierBalanceMovement]:

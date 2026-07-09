@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,6 +27,7 @@ class TransferStatus(StrEnum):
 
 class Transfer(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "transfers"
+    __table_args__ = (UniqueConstraint("company_id", "reference", name="uq_transfers_company_reference"),)
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
@@ -41,7 +42,7 @@ class Transfer(Base, UUIDPKMixin, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="RESTRICT"), nullable=True
     )
     client_debt_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
-    reference: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
     beneficiary_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
