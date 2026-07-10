@@ -27,6 +27,19 @@ async def get_active_by_scope(
     return result.scalar_one_or_none()
 
 
+async def list_active_for_currency(
+    session: AsyncSession, company_id: uuid.UUID, currency: str
+) -> list[PrivateSendingRate]:
+    result = await session.execute(
+        select(PrivateSendingRate).where(
+            PrivateSendingRate.company_id == company_id,
+            PrivateSendingRate.currency == currency,
+            PrivateSendingRate.is_active.is_(True),
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def list_by_company(session: AsyncSession, company_id: uuid.UUID) -> list[PrivateSendingRate]:
     result = await session.execute(
         select(PrivateSendingRate)

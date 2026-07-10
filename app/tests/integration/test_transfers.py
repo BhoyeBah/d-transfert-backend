@@ -84,6 +84,34 @@ async def test_create_transfer_with_currency_conversion(client):
     assert body["converted_amount"] == "77500.00"
 
 
+async def test_private_rate_with_country_set_is_still_found(client):
+    # The "Pays" field on a private rate is informational only — a transfer has no destination
+    # country to match against, so a rate saved with a country must still be usable, not silently
+    # invisible to lookup (regression: country used to be matched with strict equality against
+    # the literal None the transfer service always passed in).
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "rate": "15.5", "country": "Sénégal"},
+        headers=_auth_headers(token_a),
+    )
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "5000",
+            "currency": "XOF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    assert response.json()["private_rate_used"] == "15.500000"
+    assert response.json()["converted_amount"] == "77500.00"
+
+
 async def test_create_transfer_without_private_rate_is_rejected(client):
     matricule_a, token_a = await _register_and_login_owner(
         client, company_name="Entreprise Sans Taux", company_phone="+224870000030"

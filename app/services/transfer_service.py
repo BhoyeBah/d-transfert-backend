@@ -100,19 +100,34 @@ async def create_transfer(
         session, collaboration.current_rate_id
     )
 
-    private_rate_row = await private_rate_repository.get_active_by_scope(
-        session, company_id, collaboration.id, None, payload.currency, payload.send_mode
+    # A transfer has no destination-country context to match against, so any active rate for
+    # this currency is a candidate regardless of the (optional, purely informational) country
+    # it was recorded with — only collaboration/operation-type specificity decide priority.
+    candidate_rates = await private_rate_repository.list_active_for_currency(
+        session, company_id, payload.currency
+    )
+    private_rate_row = next(
+        (
+            r
+            for r in candidate_rates
+            if r.collaboration_id == collaboration.id and r.operation_type == payload.send_mode
+        ),
+        None,
     )
     if private_rate_row is None:
-        private_rate_row = await private_rate_repository.get_active_by_scope(
-            session, company_id, collaboration.id, None, payload.currency
+        private_rate_row = next(
+            (r for r in candidate_rates if r.collaboration_id == collaboration.id and r.operation_type is None),
+            None,
         )
     if private_rate_row is None:
-        private_rate_row = await private_rate_repository.get_active_by_scope(
-            session, company_id, None, None, payload.currency
+        private_rate_row = next(
+            (r for r in candidate_rates if r.collaboration_id is None and r.operation_type is None), None
         )
     if private_rate_row is None:
-        raise ConflictError("Aucun taux d'envoi privé configuré pour cette devise.")
+        raise ConflictError(
+            f"Aucun taux d'envoi privé configuré pour la devise {payload.currency}. "
+            "Configurez-le depuis la page de la collaboration avant de créer cet envoi."
+        )
     private_rate_used = private_rate_row.rate
 
     entry = None
