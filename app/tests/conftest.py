@@ -8,7 +8,7 @@ from app.main import app
 from app.models.base import Base
 from app.models.role import Permission, Role
 
-TEST_DATABASE_URL = "postgresql+asyncpg://dtransfert:dtransfert@localhost:5432/dtransfert_test"
+TEST_DATABASE_URL = "postgresql+asyncpg://dtransfert:dtransfert@localhost:55432/dtransfert_test"
 
 test_engine = create_async_engine(TEST_DATABASE_URL)
 

@@ -92,12 +92,20 @@ async def test_merge_entries_aggregates_lines_without_new_wallet_movement(client
 
     entry_1 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_2 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_1_id = entry_1.json()["id"]
@@ -123,23 +131,66 @@ async def test_merge_entries_aggregates_lines_without_new_wallet_movement(client
     assert original_2.json()["merged_into_id"] == merged["id"]
 
 
+async def test_merge_rejects_entries_from_different_clients(client):
+    _, owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH")
+
+    entry_1 = await client.post(
+        "/api/v1/entries",
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    entry_2 = await client.post(
+        "/api/v1/entries",
+        json={
+            "client_name": "Client B",
+            "client_phone": "+224620000002",
+            "lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}],
+        },
+        headers=_auth_headers(owner_token),
+    )
+
+    response = await client.post(
+        "/api/v1/entries/merge",
+        json={"entry_ids": [entry_1.json()["id"], entry_2.json()["id"]]},
+        headers=_auth_headers(owner_token),
+    )
+    assert response.status_code == 409
+
+
 async def test_merge_rejects_already_merged_entry(client):
     _, owner_token = await _register_and_login_owner(client)
     cash_id = await _create_wallet(client, owner_token, "CASH")
 
     entry_1 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_2 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_3 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "2000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "2000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_1_id = entry_1.json()["id"]
@@ -166,7 +217,11 @@ async def test_cancel_entry_reverses_wallet_balance(client):
 
     entry = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_id = entry.json()["id"]
@@ -213,12 +268,20 @@ async def test_merge_partially_allocated_entry_carries_only_remaining_amount(cli
 
     entry_1 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_2 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_1_id = entry_1.json()["id"]
@@ -329,12 +392,20 @@ async def test_cancel_merged_entry_rejected(client):
 
     entry_1 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_2 = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}]},
+        json={
+            "client_name": "Client A",
+            "client_phone": "+224620000001",
+            "lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}],
+        },
         headers=_auth_headers(owner_token),
     )
     entry_1_id = entry_1.json()["id"]

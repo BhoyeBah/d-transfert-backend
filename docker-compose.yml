@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: dtransfert
       POSTGRES_DB: dtransfert
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - dtransfert_postgres_data:/var/lib/postgresql/data
 

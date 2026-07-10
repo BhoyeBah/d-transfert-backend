@@ -66,6 +66,14 @@ async def test_register_rejects_password_mismatch(client):
     assert response.status_code == 422
 
 
+async def test_register_rejects_missing_address(client):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(address=""),
+    )
+    assert response.status_code == 422
+
+
 async def test_owner_login_success(client):
     register_response = await client.post("/api/v1/auth/register", json=_register_payload())
     matricule = register_response.json()["registration_code"]
@@ -186,6 +194,40 @@ async def test_password_reset_flow(client, caplog):
     assert new_password_login.status_code == 200
 
 
+async def test_password_reset_otp_is_single_use(client, caplog):
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+
+    with caplog.at_level("INFO", logger="dtransfert.auth"):
+        await client.post("/api/v1/auth/forgot-password", json={"matricule": matricule})
+
+    match = re.search(r"OTP de réinitialisation généré pour user_id=.*: (\d{6})", caplog.text)
+    assert match is not None
+    otp_code = match.group(1)
+
+    first_reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "matricule": matricule,
+            "otp_code": otp_code,
+            "new_password": "NewSecret456!",
+            "new_password_confirmation": "NewSecret456!",
+        },
+    )
+    assert first_reset.status_code == 204
+
+    second_reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "matricule": matricule,
+            "otp_code": otp_code,
+            "new_password": "AnotherSecret789!",
+            "new_password_confirmation": "AnotherSecret789!",
+        },
+    )
+    assert second_reset.status_code == 401
+
+
 async def test_company_isolation_between_two_registrations(client):
     resp_a = await client.post("/api/v1/auth/register", json=_register_payload())
     resp_b = await client.post(
@@ -205,6 +247,26 @@ async def test_company_isolation_between_two_registrations(client):
     )
     assert me_response.status_code == 200
     assert me_response.json()["registration_code"] == resp_a.json()["registration_code"]
+
+
+async def test_refresh_token_rejected_when_company_is_suspended(client, db_session):
+    admin_token = await _create_super_admin_token(db_session)
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    refresh_token = login_response.json()["refresh_token"]
+
+    suspend_response = await client.patch(
+        f"/api/v1/admin/companies/{register_response.json()['company_id']}/status",
+        json={"status": "suspended"},
+        headers=_auth_headers(admin_token),
+    )
+    assert suspend_response.status_code == 200
+
+    refresh_after_suspend = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh_after_suspend.status_code == 401
 
 
 async def test_auth_me_returns_profile_and_permissions(client):

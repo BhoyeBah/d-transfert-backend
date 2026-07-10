@@ -20,7 +20,7 @@ class RegisterRequest(BaseModel):
 
     company_name: str = Field(min_length=2, max_length=255)
     company_phone: str = Field(min_length=6, max_length=32)
-    address: str | None = Field(default=None, max_length=255)
+    address: str = Field(min_length=2, max_length=255)
     default_currency: str = Field(min_length=3, max_length=8)
     owner_full_name: str = Field(min_length=2, max_length=255)
     password: str = Field(min_length=8, max_length=128)

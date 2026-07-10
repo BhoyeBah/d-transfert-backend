@@ -59,6 +59,12 @@ def recompute_status(lines: list[EntryLine], allocations: list[EntryAllocation])
     return EntryStatus.PARTIALLY_ALLOCATED
 
 
+def _entry_client_key(entry: Entry) -> tuple[str, str] | None:
+    if entry.client_name is None or entry.client_phone is None:
+        return None
+    return (entry.client_name.strip().lower(), entry.client_phone.strip())
+
+
 async def _load_full(
     session: AsyncSession, company_id: uuid.UUID, entry_id: uuid.UUID
 ) -> tuple[Entry, list[EntryLine], list[EntryAllocation]]:
@@ -173,6 +179,7 @@ async def merge_entries(
 
     source_entries: list[Entry] = []
     source_lines_by_entry: dict[uuid.UUID, list[EntryLine]] = {}
+    reference_client_key: tuple[str, str] | None = None
     for entry_id in payload.entry_ids:
         entry, lines, allocations = await _load_full(session, company_id, entry_id)
         if entry.status not in MERGEABLE_STATUSES:
@@ -181,6 +188,17 @@ async def merge_entries(
             )
         if entry.merged_into_id is not None:
             raise ConflictError(f"L'entrée {entry.reference} a déjà été fusionnée.")
+        client_key = _entry_client_key(entry)
+        if client_key is None:
+            raise ConflictError(
+                f"L'entrée {entry.reference} ne peut pas être fusionnée sans client renseigné."
+            )
+        if reference_client_key is None:
+            reference_client_key = client_key
+        elif client_key != reference_client_key:
+            raise ConflictError(
+                "La fusion n'est autorisée que pour des entrées du même client."
+            )
         source_entries.append(entry)
         # Seul le reliquat réellement disponible (montant des lignes moins les affectations déjà
         # consommées) doit être reporté dans l'entrée fusionnée, sinon un montant déjà affecté à un

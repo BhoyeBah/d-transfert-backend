@@ -107,6 +107,26 @@ peut en créer d'autres via `/admin/platform-admins` (frontend) ou `POST /api/v1
 `app/tests/integration/test_admin.py::_create_super_admin` pour un exemple des champs requis
 (`company_id` nul, `is_super_admin=True`, mot de passe hashé avec `app.core.security.hash_password`).
 
+## Données fictives
+
+Pour peupler une base de développement avec des données de test réalistes, lancez le script de seed :
+
+```bash
+python scripts/seed_demo.py
+```
+
+Pour cibler une entreprise existante, passez son matricule :
+
+```bash
+python scripts/seed_demo.py --company-code DT-VSVBELC5
+```
+
+Sans option, le script crée un tenant principal de démonstration et 15 entreprises partenaires.
+Avec `--company-code`, il peuple l'entreprise existante indiquée. Dans les deux cas, il génère au
+moins 15 enregistrements pour les modules métier principaux : employés, wallets, collaborations,
+entrées, transferts, paiements, fournisseurs, opérations nationales et preuves. Les notifications
+et les audit logs sont générés automatiquement par les services métier.
+
 ## Tests
 
 ```bash
