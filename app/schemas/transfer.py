@@ -46,6 +46,9 @@ class TransferCreateRequest(BaseModel):
 class TransferApproveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    wallet_id: uuid.UUID = Field(
+        description="Wallet du collaborateur ayant servi à payer le bénéficiaire."
+    )
     proof_id: uuid.UUID | None = None
 
 
@@ -74,6 +77,7 @@ class TransferResponse(BaseModel):
     converted_amount: Decimal
     status: TransferStatus
     proof_id: uuid.UUID | None
+    wallet_id: uuid.UUID | None
     created_by_id: uuid.UUID
     approved_at: datetime | None
     rejected_at: datetime | None

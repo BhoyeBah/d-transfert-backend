@@ -56,6 +56,9 @@ class Transfer(Base, UUIDPKMixin, TimestampMixin):
         Enum(TransferStatus, native_enum=False, length=16), default=TransferStatus.PENDING, nullable=False
     )
     proof_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    wallet_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("wallets.id", ondelete="RESTRICT"), nullable=True
+    )
     created_by_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

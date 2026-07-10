@@ -73,7 +73,12 @@ async def _create_and_approve_transfer(client, collaboration_id, token_a, token_
         headers=_auth_headers(token_a),
     )
     transfer_id = create_response.json()["id"]
-    await client.post(f"/api/v1/transfers/{transfer_id}/approve", json={}, headers=_auth_headers(token_b))
+    wallet_b_id = await _create_wallet(client, token_b, "PAYOUT", initial_balance="1000000")
+    await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_id},
+        headers=_auth_headers(token_b),
+    )
 
 
 async def test_payment_from_entry_settles_existing_debt(client):

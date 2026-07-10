@@ -100,8 +100,19 @@ async def test_full_chain_wallet_entry_transfer_payment_reconciles(client, db_se
     wallet_a_after_transfer = await client.get(f"/api/v1/wallets/{cash_a}", headers=_auth_headers(token_a))
     assert wallet_a_after_transfer.json()["balance"] == "100000.00"
 
-    # B approves: collaborator balance updates, A owes B 80000 GNF.
-    await client.post(f"/api/v1/transfers/{transfer_id}/approve", json={}, headers=_auth_headers(token_b))
+    # B approves: collaborator balance updates, A owes B 80000 GNF. B pays the beneficiary
+    # from its own wallet, which must be debited by the converted amount.
+    wallet_b_payout = await _create_wallet(client, token_b, "PAYOUT", initial_balance="1000000")
+    await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_payout},
+        headers=_auth_headers(token_b),
+    )
+
+    wallet_b_payout_after = await client.get(
+        f"/api/v1/wallets/{wallet_b_payout}", headers=_auth_headers(token_b)
+    )
+    assert wallet_b_payout_after.json()["balance"] == "920000.00"
 
     balance_a = await client.get(
         f"/api/v1/collaborations/{collaboration_id}/balance", headers=_auth_headers(token_a)

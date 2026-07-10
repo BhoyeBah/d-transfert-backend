@@ -143,7 +143,17 @@ async def test_proof_status_pending_then_validated_on_transfer_approval(client):
     proof_id = upload_response.json()["id"]
     assert upload_response.json()["status"] == "pending"
 
-    await client.post(f"/api/v1/transfers/{transfer_id}/approve", json={}, headers=_auth_headers(token_b))
+    wallet_response = await client.post(
+        "/api/v1/wallets",
+        json={"name": "PAYOUT", "code": "PAYOUT", "type": "cash", "currency": "GNF", "initial_balance": "1000000"},
+        headers=_auth_headers(token_b),
+    )
+    wallet_id = wallet_response.json()["id"]
+    await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_id},
+        headers=_auth_headers(token_b),
+    )
 
     list_response = await client.get(
         f"/api/v1/transfers/{transfer_id}/proofs", headers=_auth_headers(token_a)

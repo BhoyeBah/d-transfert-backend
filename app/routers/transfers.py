@@ -111,7 +111,7 @@ async def approve_transfer(
     current_user: CurrentUser = Depends(_require_validate),
 ) -> TransferResponse:
     transfer = await transfer_service.approve_transfer(
-        db, company_id, current_user.id, transfer_id, payload.proof_id
+        db, company_id, current_user.id, transfer_id, payload.wallet_id, payload.proof_id
     )
     return _serialize(transfer, company_id)
 

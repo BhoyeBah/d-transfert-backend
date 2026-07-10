@@ -10,6 +10,7 @@ from app.models.entry_allocation import EntryAllocation, EntryAllocationTargetTy
 from app.models.notification import NotificationType
 from app.models.proof import ProofStatus
 from app.models.transfer import Transfer, TransferStatus, TransferStatusHistory
+from app.models.wallet_movement import MovementDirection
 from app.repositories import (
     collaboration_repository,
     collaborator_balance_repository,
@@ -17,10 +18,11 @@ from app.repositories import (
     private_rate_repository,
     proof_repository,
     transfer_repository,
+    wallet_repository,
 )
 from app.schemas.pagination import PageParams
 from app.schemas.transfer import TransferCreateRequest
-from app.services import audit_service, client_service, entry_service, notification_service
+from app.services import audit_service, client_service, entry_service, notification_service, wallet_service
 from app.utils.reference import daily_sequence_prefix, format_daily_reference
 
 REFERENCE_MAX_RETRIES = 5
@@ -277,6 +279,7 @@ async def approve_transfer(
     company_id: uuid.UUID,
     acted_by_user_id: uuid.UUID,
     transfer_id: uuid.UUID,
+    wallet_id: uuid.UUID,
     proof_id: uuid.UUID | None,
 ) -> Transfer:
     transfer, collaboration = await _get_transfer_for_party(
@@ -287,6 +290,28 @@ async def approve_transfer(
         raise PermissionDeniedError("Seul le collaborateur sollicité peut approuver cet envoi.")
     if transfer.status != TransferStatus.PENDING:
         raise ConflictError("Cet envoi n'est plus en attente.")
+
+    # Le collaborateur qui approuve doit indiquer depuis quel wallet il a payé le bénéficiaire,
+    # afin que son solde reflète ce décaissement.
+    wallet = await wallet_repository.lock_by_id(session, wallet_id)
+    if wallet is None or wallet.company_id != company_id:
+        raise NotFoundError(f"Wallet introuvable : {wallet_id}.")
+    if wallet.currency != collaboration.currency:
+        raise ConflictError(
+            f"Le wallet sélectionné est en {wallet.currency}, mais le paiement doit être effectué "
+            f"en {collaboration.currency}."
+        )
+    await wallet_service.apply_movement(
+        session,
+        wallet,
+        MovementDirection.OUT,
+        transfer.converted_amount,
+        source_type="transfer",
+        source_id=transfer.id,
+        created_by_id=acted_by_user_id,
+        note=f"Envoi {transfer.reference} payé au bénéficiaire",
+    )
+    transfer.wallet_id = wallet_id
 
     await collaborator_balance_repository.create(
         session,
