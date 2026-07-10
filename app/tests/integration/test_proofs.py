@@ -39,6 +39,11 @@ async def _setup_accepted_collaboration(client, rate="16", currency="GNF"):
     )
     collaboration_id = create_response.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": currency, "rate": "15"},
+        headers=_auth_headers(token_a),
+    )
     return collaboration_id, (matricule_a, token_a), (matricule_b, token_b)
 
 

@@ -57,6 +57,11 @@ async def test_full_chain_wallet_entry_transfer_payment_reconciles(client, db_se
     )
     collaboration_id = create_collab.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "16"},
+        headers=_auth_headers(token_a),
+    )
 
     # A receives 100000 GNF from a client into a wallet via an entry.
     cash_a = await _create_wallet(client, token_a, "CASH")

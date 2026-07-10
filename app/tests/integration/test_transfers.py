@@ -44,11 +44,24 @@ async def _setup_accepted_collaboration(client, rate="16", currency="GNF"):
     )
     collaboration_id = create_response.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    # A private sending rate is required before A can create a transfer; register a broad
+    # (company-wide) one matching the collaboration currency so callers don't need to set it
+    # up themselves unless they're specifically testing private-rate scoping/conversion.
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": currency, "rate": "15"},
+        headers=_auth_headers(token_a),
+    )
     return collaboration_id, (matricule_a, token_a), (matricule_b, token_b)
 
 
 async def test_create_transfer_with_currency_conversion(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "rate": "15.5"},
+        headers=_auth_headers(token_a),
+    )
 
     response = await client.post(
         "/api/v1/transfers",
@@ -64,8 +77,40 @@ async def test_create_transfer_with_currency_conversion(client):
     assert response.status_code == 201
     body = response.json()
     assert body["status"] == "pending"
+    # The private (sending) rate drives the conversion the collaborator must pay out;
+    # the collaborative rate is only recorded for reference/settlement purposes.
+    assert body["private_rate_used"] == "15.500000"
     assert body["collaborative_rate_used"] == "16.000000"
-    assert body["converted_amount"] == "80000.00"
+    assert body["converted_amount"] == "77500.00"
+
+
+async def test_create_transfer_without_private_rate_is_rejected(client):
+    matricule_a, token_a = await _register_and_login_owner(
+        client, company_name="Entreprise Sans Taux", company_phone="+224870000030"
+    )
+    matricule_b, token_b = await _register_and_login_owner(
+        client, company_name="Entreprise Sans Taux B", company_phone="+224870000031"
+    )
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "1000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 409
 
 
 async def test_transfer_same_currency_as_collaboration_no_conversion(client):

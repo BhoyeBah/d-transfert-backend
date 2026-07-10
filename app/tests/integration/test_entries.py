@@ -265,6 +265,11 @@ async def test_merge_partially_allocated_entry_carries_only_remaining_amount(cli
     await client.post(
         f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(owner_token)
     )
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "1"},
+        headers=_auth_headers(owner_token),
+    )
 
     entry_1 = await client.post(
         "/api/v1/entries",
@@ -355,6 +360,11 @@ async def test_cancel_entry_with_live_allocation_rejected(client):
     collaboration_id = collab_response.json()["id"]
     await client.post(
         f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(owner_token)
+    )
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "1"},
+        headers=_auth_headers(owner_token),
     )
 
     entry = await client.post(

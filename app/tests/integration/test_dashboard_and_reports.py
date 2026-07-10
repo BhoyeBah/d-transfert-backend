@@ -48,6 +48,11 @@ async def test_dashboard_reflects_wallets_and_pending_transfers(client):
     )
     collaboration_id = create_collab.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "16"},
+        headers=_auth_headers(token_a),
+    )
 
     await client.post(
         "/api/v1/transfers",
@@ -168,6 +173,11 @@ async def test_transactions_report_includes_transfers_and_payments(client):
     )
     collaboration_id = create_collab.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "16"},
+        headers=_auth_headers(token_a),
+    )
 
     await client.post(
         "/api/v1/transfers",
@@ -292,6 +302,11 @@ async def test_fees_report_from_reliquat_fee_action(client):
     )
     collaboration_id = create_collab.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "16"},
+        headers=_auth_headers(token_a),
+    )
 
     wallet_response = await client.post(
         "/api/v1/wallets",
@@ -347,6 +362,11 @@ async def test_rejected_operations_report(client):
     )
     collaboration_id = create_collab.json()["id"]
     await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "16"},
+        headers=_auth_headers(token_a),
+    )
 
     create_transfer = await client.post(
         "/api/v1/transfers",

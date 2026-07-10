@@ -111,7 +111,9 @@ async def create_transfer(
         private_rate_row = await private_rate_repository.get_active_by_scope(
             session, company_id, None, None, payload.currency
         )
-    private_rate_used = private_rate_row.rate if private_rate_row else None
+    if private_rate_row is None:
+        raise ConflictError("Aucun taux d'envoi privé configuré pour cette devise.")
+    private_rate_used = private_rate_row.rate
 
     entry = None
     lines: list = []
@@ -161,7 +163,7 @@ async def create_transfer(
         client_debt_amount = _quantize(payload.amount)
 
     converted_amount = _convert_to_collaboration_currency(
-        payload.amount, payload.currency, collaboration.currency, collaborative_rate.new_rate
+        payload.amount, payload.currency, collaboration.currency, private_rate_used
     )
 
     client = None
