@@ -175,4 +175,9 @@ async def download_payment_proof(
     _current_user: CurrentUser = Depends(_require_view_access),
 ) -> FileResponse:
     proof = await proof_service.get_payment_proof_file(db, company_id, payment_id, proof_id)
-    return FileResponse(proof.storage_path, media_type=proof.content_type, filename=proof.file_name)
+    return FileResponse(
+        proof.storage_path,
+        media_type=proof.content_type,
+        filename=proof.file_name,
+        content_disposition_type="inline",
+    )

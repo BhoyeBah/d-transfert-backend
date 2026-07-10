@@ -3,6 +3,12 @@ from sqlalchemy import select
 from app.models.audit_log import AuditLog
 from app.models.transfer import Transfer, TransferStatus, TransferStatusHistory
 
+_PNG_BYTES = bytes.fromhex(
+    "89504e470d0a1a0a0000000d494844520000000100000001080600000"
+    "01f15c4890000000a49444154789c6360000002000100feff03000006"
+    "0005a5d996690000000049454e44ae426082"
+)
+
 
 async def _register_and_login_owner(client, **overrides) -> tuple[str, str]:
     payload = {
@@ -101,11 +107,18 @@ async def test_full_chain_wallet_entry_transfer_payment_reconciles(client, db_se
     assert wallet_a_after_transfer.json()["balance"] == "100000.00"
 
     # B approves: collaborator balance updates, A owes B 80000 GNF. B pays the beneficiary
-    # from its own wallet, which must be debited by the converted amount.
+    # from its own wallet, which must be debited by the converted amount, and must attach
+    # proof of that payment.
     wallet_b_payout = await _create_wallet(client, token_b, "PAYOUT", initial_balance="1000000")
+    proof_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": ("preuve.png", _PNG_BYTES, "image/png")},
+        headers=_auth_headers(token_b),
+    )
+    proof_id = proof_response.json()["id"]
     await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_payout},
+        json={"wallet_id": wallet_b_payout, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
 

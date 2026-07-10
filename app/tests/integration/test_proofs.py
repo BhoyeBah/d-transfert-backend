@@ -149,9 +149,16 @@ async def test_proof_status_pending_then_validated_on_transfer_approval(client):
         headers=_auth_headers(token_b),
     )
     wallet_id = wallet_response.json()["id"]
+    # The approver (B) must attach its own proof of payment to approve.
+    b_proof_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": ("preuve-b.png", content, content_type)},
+        headers=_auth_headers(token_b),
+    )
+    b_proof_id = b_proof_response.json()["id"]
     await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_id},
+        json={"wallet_id": wallet_id, "proof_id": b_proof_id},
         headers=_auth_headers(token_b),
     )
 

@@ -184,4 +184,9 @@ async def download_transfer_proof(
     _current_user: CurrentUser = Depends(_require_view_access),
 ) -> FileResponse:
     proof = await proof_service.get_transfer_proof_file(db, company_id, transfer_id, proof_id)
-    return FileResponse(proof.storage_path, media_type=proof.content_type, filename=proof.file_name)
+    return FileResponse(
+        proof.storage_path,
+        media_type=proof.content_type,
+        filename=proof.file_name,
+        content_disposition_type="inline",
+    )

@@ -1,3 +1,26 @@
+import uuid
+
+
+def _png_file(name="preuve.png"):
+    # Minimal valid 1x1 PNG.
+    content = bytes.fromhex(
+        "89504e470d0a1a0a0000000d494844520000000100000001080600000"
+        "01f15c4890000000a49444154789c6360000002000100feff03000006"
+        "0005a5d996690000000049454e44ae426082"
+    )
+    return name, content, "image/png"
+
+
+async def _upload_proof(client, token, transfer_id):
+    name, content, content_type = _png_file()
+    response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": (name, content, content_type)},
+        headers=_auth_headers(token),
+    )
+    return response.json()["id"]
+
+
 async def _register_and_login_owner(client, **overrides) -> tuple[str, str]:
     payload = {
         "company_name": "Entreprise Transfert",
@@ -531,7 +554,7 @@ async def test_approve_transfer_rejects_wallet_from_other_company(client):
 
     response = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_a_id},
+        json={"wallet_id": wallet_a_id, "proof_id": str(uuid.uuid4())},
         headers=_auth_headers(token_b),
     )
     assert response.status_code == 404
@@ -555,7 +578,7 @@ async def test_approve_transfer_rejects_wallet_currency_mismatch(client):
 
     response = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_xof},
+        json={"wallet_id": wallet_b_xof, "proof_id": str(uuid.uuid4())},
         headers=_auth_headers(token_b),
     )
     assert response.status_code == 409
@@ -579,10 +602,60 @@ async def test_approve_transfer_rejects_insufficient_wallet_balance(client):
 
     response = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_id, "proof_id": str(uuid.uuid4())},
+        headers=_auth_headers(token_b),
+    )
+    assert response.status_code == 422
+
+
+async def test_approve_transfer_requires_proof_id(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    wallet_b_id = await _create_wallet(client, token_b, "CASHB", currency="GNF", initial_balance="1000000")
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    transfer_id = create_response.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
         json={"wallet_id": wallet_b_id},
         headers=_auth_headers(token_b),
     )
     assert response.status_code == 422
+
+
+async def test_approve_transfer_rejects_proof_from_wrong_company(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    wallet_b_id = await _create_wallet(client, token_b, "CASHB", currency="GNF", initial_balance="1000000")
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    transfer_id = create_response.json()["id"]
+    # A (the creator, not the approver) uploads a proof of its own.
+    proof_id = await _upload_proof(client, token_a, transfer_id)
+
+    response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
+        headers=_auth_headers(token_b),
+    )
+    assert response.status_code == 404
 
 
 async def test_only_collaborator_can_approve_and_balance_updates(client):
@@ -601,26 +674,28 @@ async def test_only_collaborator_can_approve_and_balance_updates(client):
         headers=_auth_headers(token_a),
     )
     transfer_id = create_response.json()["id"]
+    proof_id = await _upload_proof(client, token_b, transfer_id)
 
     self_approve = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_a),
     )
     assert self_approve.status_code == 403
 
     approve_response = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
     assert approve_response.status_code == 200
     assert approve_response.json()["status"] == "approved"
     assert approve_response.json()["wallet_id"] == wallet_b_id
+    assert approve_response.json()["proof_id"] == proof_id
 
     double_approve = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
     assert double_approve.status_code == 409
@@ -752,9 +827,10 @@ async def test_approved_transfer_cannot_be_cancelled(client):
         headers=_auth_headers(token_a),
     )
     transfer_id = create_response.json()["id"]
+    proof_id = await _upload_proof(client, token_b, transfer_id)
     await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
 
@@ -864,9 +940,10 @@ async def test_private_rate_used_hidden_from_counterparty(client):
     list_from_b = await client.get("/api/v1/transfers", headers=_auth_headers(token_b))
     assert all(item["private_rate_used"] is None for item in list_from_b.json())
 
+    proof_id = await _upload_proof(client, token_b, transfer_id)
     approve_response = await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
     assert approve_response.json()["private_rate_used"] is None
@@ -888,9 +965,10 @@ async def test_approved_transfer_cannot_be_rejected(client):
         headers=_auth_headers(token_a),
     )
     transfer_id = create_response.json()["id"]
+    proof_id = await _upload_proof(client, token_b, transfer_id)
     await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
 

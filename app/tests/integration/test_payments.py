@@ -1,3 +1,10 @@
+_PNG_BYTES = bytes.fromhex(
+    "89504e470d0a1a0a0000000d494844520000000100000001080600000"
+    "01f15c4890000000a49444154789c6360000002000100feff03000006"
+    "0005a5d996690000000049454e44ae426082"
+)
+
+
 async def _register_and_login_owner(client, **overrides) -> tuple[str, str]:
     payload = {
         "company_name": "Entreprise Paiement",
@@ -74,9 +81,15 @@ async def _create_and_approve_transfer(client, collaboration_id, token_a, token_
     )
     transfer_id = create_response.json()["id"]
     wallet_b_id = await _create_wallet(client, token_b, "PAYOUT", initial_balance="1000000")
+    proof_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/proofs",
+        files={"file": ("preuve.png", _PNG_BYTES, "image/png")},
+        headers=_auth_headers(token_b),
+    )
+    proof_id = proof_response.json()["id"]
     await client.post(
         f"/api/v1/transfers/{transfer_id}/approve",
-        json={"wallet_id": wallet_b_id},
+        json={"wallet_id": wallet_b_id, "proof_id": proof_id},
         headers=_auth_headers(token_b),
     )
 

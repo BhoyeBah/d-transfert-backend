@@ -49,7 +49,9 @@ class TransferApproveRequest(BaseModel):
     wallet_id: uuid.UUID = Field(
         description="Wallet du collaborateur ayant servi à payer le bénéficiaire."
     )
-    proof_id: uuid.UUID | None = None
+    proof_id: uuid.UUID = Field(
+        description="Preuve du paiement au bénéficiaire, déjà téléversée via /proofs."
+    )
 
 
 class TransferRejectRequest(BaseModel):
