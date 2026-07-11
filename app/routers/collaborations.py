@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.exceptions import PermissionDeniedError
 from app.core.permission_codes import PermissionCode
-from app.core.permissions import CurrentUser, get_company_scope, require_permission
+from app.core.permissions import CurrentUser, get_company_scope, get_current_user, require_permission
 from app.models.collaboration import Collaboration, CollaborationRateHistory
 from app.repositories import company_repository
 from app.schemas.collaboration import (
@@ -23,6 +24,27 @@ from app.services import collaboration_service
 router = APIRouter(prefix="/api/v1/collaborations", tags=["collaborations"])
 
 _require_manage = require_permission(PermissionCode.COLLABORATION_MANAGE)
+
+# Gérer une collaboration (proposer/accepter un taux, accepter/rejeter la demande) reste
+# réservé à collaboration.manage. Mais un collaborateur ayant transfer.create, payment.create
+# ou operation.validate a nécessairement besoin de lire les collaborations de son entreprise —
+# pour choisir vers qui envoyer, et pour afficher le nom du partenaire / la devise sur le détail
+# d'un envoi ou d'un paiement — ces lectures sont déjà bornées à l'entreprise de l'appelant
+# (get_company_scope), donc les élargir à ces permissions ne fuite rien vers d'autres entreprises.
+def _require_view_access(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    if current_user.is_owner or current_user.is_super_admin:
+        return current_user
+    if (
+        PermissionCode.COLLABORATION_MANAGE in current_user.permissions
+        or PermissionCode.TRANSFER_CREATE in current_user.permissions
+        or PermissionCode.PAYMENT_CREATE in current_user.permissions
+        or PermissionCode.OPERATION_VALIDATE in current_user.permissions
+    ):
+        return current_user
+    raise PermissionDeniedError(
+        f"Permission requise : {PermissionCode.COLLABORATION_MANAGE}, {PermissionCode.TRANSFER_CREATE}, "
+        f"{PermissionCode.PAYMENT_CREATE} ou {PermissionCode.OPERATION_VALIDATE}"
+    )
 
 
 def _other_party(collaboration: Collaboration, company_id: uuid.UUID) -> uuid.UUID:
@@ -67,7 +89,7 @@ async def request_collaboration(
 async def list_collaborations(
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    _current_user: CurrentUser = Depends(_require_view_access),
 ) -> list[CollaborationResponse]:
     results = await collaboration_service.list_collaborations(db, company_id)
     return [await _to_response(db, company_id, collaboration, rate) for collaboration, rate in results]
@@ -78,7 +100,7 @@ async def list_collaborations_page(
     company_id: uuid.UUID = Depends(get_company_scope),
     params: PageParams = Depends(page_params),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    _current_user: CurrentUser = Depends(_require_view_access),
 ) -> Page[CollaborationResponse]:
     results, total = await collaboration_service.list_collaborations_page(db, company_id, params)
     items = [await _to_response(db, company_id, collaboration, rate) for collaboration, rate in results]
@@ -90,7 +112,7 @@ async def get_collaboration(
     collaboration_id: uuid.UUID,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    _current_user: CurrentUser = Depends(_require_view_access),
 ) -> CollaborationResponse:
     collaboration, rate = await collaboration_service.get_collaboration(db, company_id, collaboration_id)
     return await _to_response(db, company_id, collaboration, rate)
@@ -181,7 +203,7 @@ async def get_rate_history(
     collaboration_id: uuid.UUID,
     company_id: uuid.UUID = Depends(get_company_scope),
     db: AsyncSession = Depends(get_db),
-    _current_user: CurrentUser = Depends(_require_manage),
+    _current_user: CurrentUser = Depends(_require_view_access),
 ) -> list[CollaborationRateHistoryResponse]:
     history = await collaboration_service.get_rate_history(db, company_id, collaboration_id)
     return [CollaborationRateHistoryResponse.model_validate(item, from_attributes=True) for item in history]

@@ -440,3 +440,68 @@ async def test_employee_without_permission_forbidden(client):
 
     response = await client.get("/api/v1/collaborations", headers=_auth_headers(employee_token))
     assert response.status_code == 403
+
+
+async def test_transfer_create_permission_grants_read_only_collaboration_access(client):
+    """Un employé qui peut créer des envois (transfer.create) doit pouvoir lire les
+    collaborations de son entreprise — pour choisir vers qui envoyer, et pour afficher le
+    partenaire/la devise sur le détail d'un envoi — même sans collaboration.manage. Les
+    lectures sont bornées à l'entreprise de l'appelant, donc ça ne fuite rien vers d'autres
+    entreprises ; les actions de gestion (accepter/rejeter/proposer un taux) restent, elles,
+    réservées à collaboration.manage."""
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    employee_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé Envois",
+            "phone": "+224913333333",
+            "password": "EmployeePass123!",
+            "permissions": ["transfer.create"],
+        },
+        headers=_auth_headers(token_a),
+    )
+    employee_matricule = employee_response.json()["matricule"]
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": employee_matricule, "password": "EmployeePass123!"},
+    )
+    employee_token = login_response.json()["access_token"]
+
+    list_response = await client.get("/api/v1/collaborations", headers=_auth_headers(employee_token))
+    assert list_response.status_code == 200
+    assert len(list_response.json()) == 1
+
+    page_response = await client.get("/api/v1/collaborations/page", headers=_auth_headers(employee_token))
+    assert page_response.status_code == 200
+
+    get_response = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}", headers=_auth_headers(employee_token)
+    )
+    assert get_response.status_code == 200
+    assert get_response.json()["id"] == collaboration_id
+
+    history_response = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/rate-history", headers=_auth_headers(employee_token)
+    )
+    assert history_response.status_code == 200
+
+    # Mais la gestion reste réservée à collaboration.manage.
+    accept_response = await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/rate-proposals",
+        json={"new_rate": "20"},
+        headers=_auth_headers(employee_token),
+    )
+    assert accept_response.status_code == 403
+
+    balance_response = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/balance", headers=_auth_headers(employee_token)
+    )
+    assert balance_response.status_code == 403
