@@ -10,15 +10,17 @@ async def get_active_by_scope(
     session: AsyncSession,
     company_id: uuid.UUID,
     collaboration_id: uuid.UUID | None,
-    country: str | None,
     currency: str,
     operation_type: str | None = None,
 ) -> PrivateSendingRate | None:
+    # `country` is purely an informational label the user attaches to a rate (e.g. "Guinée"
+    # for GNF) — it must NOT be part of what identifies "the same rate slot", otherwise
+    # changing the label (or leaving it blank) when updating a rate would leave the old rate
+    # active alongside the new one instead of superseding it.
     result = await session.execute(
         select(PrivateSendingRate).where(
             PrivateSendingRate.company_id == company_id,
             PrivateSendingRate.collaboration_id == collaboration_id,
-            PrivateSendingRate.country == country,
             PrivateSendingRate.currency == currency,
             PrivateSendingRate.operation_type == operation_type,
             PrivateSendingRate.is_active.is_(True),

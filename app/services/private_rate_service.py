@@ -12,7 +12,7 @@ async def set_rate(
     session: AsyncSession, company_id: uuid.UUID, created_by_id: uuid.UUID, payload: PrivateRateCreateRequest
 ) -> PrivateSendingRate:
     existing = await private_rate_repository.get_active_by_scope(
-        session, company_id, payload.collaboration_id, payload.country, payload.currency, payload.operation_type
+        session, company_id, payload.collaboration_id, payload.currency, payload.operation_type
     )
     if existing is not None:
         existing.is_active = False

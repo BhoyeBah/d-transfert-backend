@@ -174,6 +174,29 @@ async def test_private_rate_versioning_deactivates_previous(client):
     assert inactive[0]["deactivated_at"] is not None
 
 
+async def test_private_rate_versioning_ignores_country_label(client):
+    """`country` is only an informational label (e.g. "Guinée" for GNF) attached by the
+    user — it must not stop a new rate from superseding the previous one for the same
+    currency, otherwise the same currency could end up with two ambiguous active rates."""
+    _, token_a = await _register_and_login_owner(client)
+
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6", "country": "Guinée"},
+        headers=_auth_headers(token_a),
+    )
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "15.2"},
+        headers=_auth_headers(token_a),
+    )
+
+    rates = (await client.get("/api/v1/private-rates", headers=_auth_headers(token_a))).json()
+    active = [r for r in rates if r["is_active"]]
+    assert len(active) == 1
+    assert active[0]["rate"] == "15.200000"
+
+
 async def test_rate_proposal_notifies_other_party(client):
     (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
     create_response = await client.post(
