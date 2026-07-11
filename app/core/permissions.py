@@ -71,6 +71,18 @@ def require_permission(permission_code: str) -> Callable[..., CurrentUser]:
     return dependency
 
 
+def require_any_permission(*permission_codes: str) -> Callable[..., CurrentUser]:
+    def dependency(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        if current_user.is_super_admin or current_user.is_owner:
+            return current_user
+        if not any(code in current_user.permissions for code in permission_codes):
+            required = ", ".join(permission_codes)
+            raise PermissionDeniedError(f"Une des permissions suivantes est requise : {required}")
+        return current_user
+
+    return dependency
+
+
 def get_company_scope(current_user: CurrentUser = Depends(get_current_user)) -> uuid.UUID:
     if current_user.company_id is None:
         raise PermissionDeniedError("Aucune entreprise associée à cet utilisateur.")

@@ -5,11 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permission_codes import PermissionCode
-from app.core.permissions import CurrentUser, get_company_scope, require_permission
+from app.core.permissions import CurrentUser, get_company_scope, require_any_permission, require_permission
 from app.schemas.pagination import Page, PageParams, page_params
 from app.schemas.wallet import (
     WalletCreateRequest,
     WalletMovementResponse,
+    WalletOptionResponse,
     WalletResponse,
     WalletStatusUpdateRequest,
     WalletUpdateRequest,
@@ -17,6 +18,23 @@ from app.schemas.wallet import (
 from app.services import wallet_service
 
 router = APIRouter(prefix="/api/v1/wallets", tags=["wallets"])
+
+
+@router.get("/options", response_model=list[WalletOptionResponse])
+async def list_wallet_options(
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(
+        require_any_permission(
+            PermissionCode.ENTRY_MANAGE,
+            PermissionCode.TRANSFER_CREATE,
+            PermissionCode.PAYMENT_CREATE,
+            PermissionCode.OPERATION_VALIDATE,
+        )
+    ),
+) -> list[WalletOptionResponse]:
+    """Return the minimum wallet data needed to create and display entries."""
+    return await wallet_service.list_wallets(db, company_id)
 
 
 @router.get("", response_model=list[WalletResponse])

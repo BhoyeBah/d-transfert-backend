@@ -55,6 +55,14 @@ class WalletResponse(BaseModel):
     created_at: datetime
 
 
+class WalletOptionResponse(BaseModel):
+    id: uuid.UUID
+    name: str
+    code: str
+    currency: str
+    status: WalletStatus
+
+
 class WalletMovementResponse(BaseModel):
     id: uuid.UUID
     direction: MovementDirection

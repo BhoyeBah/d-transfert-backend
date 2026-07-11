@@ -154,3 +154,50 @@ async def test_employee_without_wallet_permission_forbidden(client):
 
     response = await client.get("/api/v1/wallets", headers=_auth_headers(employee_token))
     assert response.status_code == 403
+
+
+async def test_employee_with_entry_permission_can_list_wallet_options_only(client):
+    owner_token = await _register_and_login_owner(client)
+    wallet = await client.post(
+        "/api/v1/wallets",
+        json={
+            "name": "Caisse options",
+            "code": "OPT-1",
+            "type": "cash",
+            "currency": "GNF",
+            "initial_balance": "5000",
+        },
+        headers=_auth_headers(owner_token),
+    )
+    assert wallet.status_code == 201
+
+    employee = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé Entrées",
+            "phone": "+224722222222",
+            "password": "EmployeePass123!",
+            "permissions": ["entry.manage"],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": employee.json()["matricule"], "password": "EmployeePass123!"},
+    )
+    headers = _auth_headers(login.json()["access_token"])
+
+    options = await client.get("/api/v1/wallets/options", headers=headers)
+    assert options.status_code == 200
+    assert options.json() == [
+        {
+            "id": wallet.json()["id"],
+            "name": "Caisse options",
+            "code": "OPT-1",
+            "currency": "GNF",
+            "status": "active",
+        }
+    ]
+
+    full_list = await client.get("/api/v1/wallets", headers=headers)
+    assert full_list.status_code == 403
