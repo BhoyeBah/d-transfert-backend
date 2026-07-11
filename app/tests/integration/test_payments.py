@@ -146,6 +146,51 @@ async def test_payment_from_entry_settles_existing_debt(client):
     assert entry_after.json()["available_by_currency"] == {"GNF": "5000.00"}
 
 
+async def test_net_debtor_cannot_create_payment(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+
+    await _create_and_approve_transfer(client, collaboration_id, token_a, token_b, amount="80000")
+
+    balance_a = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/balance", headers=_auth_headers(token_a)
+    )
+    assert balance_a.json()["balance"] == "-80000.00"
+
+    # A est débiteur net envers B : si A créait un paiement, il aggraverait sa propre dette
+    # au lieu de la régler (le mécanisme n'annule la dette que si le créditeur net l'initie).
+    # C'est donc bloqué, pas juste déconseillé.
+    cash_id = await _create_wallet(client, token_a, "CASH")
+    payment_response = await client.post(
+        "/api/v1/payments",
+        json={
+            "collaboration_id": collaboration_id,
+            "wallet_id": cash_id,
+            "amount": "10000",
+            "currency": "GNF",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert payment_response.status_code == 409
+
+    # B, le créditeur net, reste libre de créer le paiement qui règle la dette.
+    entry = await client.post(
+        "/api/v1/entries",
+        json={"lines": [{"wallet_id": await _create_wallet(client, token_b, "CASH2"), "amount": "80000", "currency": "GNF"}]},
+        headers=_auth_headers(token_b),
+    )
+    payment_response = await client.post(
+        "/api/v1/payments",
+        json={
+            "collaboration_id": collaboration_id,
+            "entry_id": entry.json()["id"],
+            "amount": "80000",
+            "currency": "GNF",
+        },
+        headers=_auth_headers(token_b),
+    )
+    assert payment_response.status_code == 201
+
+
 async def test_payment_direct_wallet_outflow_deferred_to_approval(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
     wallet_id = await _create_wallet(client, token_a, "CASH", initial_balance="100000")

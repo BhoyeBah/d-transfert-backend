@@ -101,6 +101,22 @@ async def create_payment(
         session, collaboration.current_rate_id
     )
 
+    # Un paiement annule une dette existante en inversant les rôles débiteur/créditeur d'un
+    # transfert : le créateur du paiement devient débiteur du nouveau mouvement, ce qui n'annule
+    # la dette que si le créateur est déjà le créditeur net (celui à qui l'argent est dû).
+    # Si le débiteur net créait lui-même un paiement, il aggraverait sa propre dette au lieu de
+    # la régler, sans aucun avertissement — c'est donc au créditeur d'initier le règlement, et
+    # au débiteur de l'approuver.
+    current_balance = await collaborator_balance_repository.get_balance_for_company(
+        session, collaboration.id, company_id
+    )
+    if current_balance < 0:
+        raise ConflictError(
+            "Vous êtes actuellement débiteur sur cette collaboration : créer un paiement "
+            "aggraverait votre dette au lieu de la régler. C'est à votre collaborateur "
+            "(à qui la somme est due) de créer ce paiement ; vous n'aurez qu'à l'approuver."
+        )
+
     entry = None
     lines: list = []
     allocations: list = []
