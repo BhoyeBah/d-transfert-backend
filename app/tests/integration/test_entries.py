@@ -456,6 +456,55 @@ async def test_employee_without_permission_forbidden(client):
     assert response.status_code == 403
 
 
+async def test_transfer_create_permission_grants_read_only_entries_access(client):
+    _, owner_token = await _register_and_login_owner(client)
+    cash_id = await _create_wallet(client, owner_token, "CASH")
+    create_response = await client.post(
+        "/api/v1/entries",
+        json={"lines": [{"wallet_id": cash_id, "amount": "10000", "currency": "GNF"}]},
+        headers=_auth_headers(owner_token),
+    )
+    entry_id = create_response.json()["id"]
+
+    employee_create_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé Envois",
+            "phone": "+224851111112",
+            "password": "EmployeePass123!",
+            "permissions": ["transfer.create"],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    employee_matricule = employee_create_response.json()["matricule"]
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": employee_matricule, "password": "EmployeePass123!"},
+    )
+    employee_token = login_response.json()["access_token"]
+
+    list_response = await client.get("/api/v1/entries", headers=_auth_headers(employee_token))
+    assert list_response.status_code == 200
+
+    page_response = await client.get("/api/v1/entries/page", headers=_auth_headers(employee_token))
+    assert page_response.status_code == 200
+
+    get_response = await client.get(f"/api/v1/entries/{entry_id}", headers=_auth_headers(employee_token))
+    assert get_response.status_code == 200
+
+    create_forbidden_response = await client.post(
+        "/api/v1/entries",
+        json={"lines": [{"wallet_id": cash_id, "amount": "5000", "currency": "GNF"}]},
+        headers=_auth_headers(employee_token),
+    )
+    assert create_forbidden_response.status_code == 403
+
+    cancel_forbidden_response = await client.post(
+        f"/api/v1/entries/{entry_id}/cancel", headers=_auth_headers(employee_token)
+    )
+    assert cancel_forbidden_response.status_code == 403
+
+
 async def test_entries_isolated_between_companies(client):
     _, owner_a_token = await _register_and_login_owner(
         client, company_name="Entreprise A", company_phone="+224850000020"
