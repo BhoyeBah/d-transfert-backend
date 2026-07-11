@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import NotFoundError
 from app.models.private_sending_rate import PrivateSendingRate
 from app.repositories import private_rate_repository
 from app.schemas.private_rate import PrivateRateCreateRequest
@@ -35,3 +36,31 @@ async def set_rate(
 
 async def list_rates(session: AsyncSession, company_id: uuid.UUID) -> list[PrivateSendingRate]:
     return await private_rate_repository.list_by_company(session, company_id)
+
+
+async def set_active_status(
+    session: AsyncSession, company_id: uuid.UUID, rate_id: uuid.UUID, is_active: bool
+) -> PrivateSendingRate:
+    rate = await private_rate_repository.get_by_company_and_id(session, company_id, rate_id)
+    if rate is None:
+        raise NotFoundError(f"Taux introuvable : {rate_id}.")
+
+    if is_active:
+        # Un seul taux peut être actif à la fois pour une même combinaison devise /
+        # collaboration / type d'opération, car c'est celui-là qui sera utilisé pour les
+        # prochains envois : réactiver ce taux désactive donc celui actuellement actif dans
+        # le même emplacement, s'il y en a un autre.
+        current_active = await private_rate_repository.get_active_by_scope(
+            session, company_id, rate.collaboration_id, rate.currency, rate.operation_type
+        )
+        if current_active is not None and current_active.id != rate.id:
+            current_active.is_active = False
+            current_active.deactivated_at = datetime.now(timezone.utc)
+        rate.is_active = True
+        rate.deactivated_at = None
+    else:
+        rate.is_active = False
+        rate.deactivated_at = datetime.now(timezone.utc)
+
+    await session.commit()
+    return rate

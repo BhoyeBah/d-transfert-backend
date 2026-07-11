@@ -197,6 +197,158 @@ async def test_private_rate_versioning_ignores_country_label(client):
     assert active[0]["rate"] == "15.200000"
 
 
+async def test_reactivating_a_rate_deactivates_the_current_active_one(client):
+    _, token_a = await _register_and_login_owner(client)
+
+    first = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6"},
+        headers=_auth_headers(token_a),
+    )
+    first_id = first.json()["id"]
+    second = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "18"},
+        headers=_auth_headers(token_a),
+    )
+    second_id = second.json()["id"]
+
+    reactivate_response = await client.patch(
+        f"/api/v1/private-rates/{first_id}/status",
+        json={"is_active": True},
+        headers=_auth_headers(token_a),
+    )
+    assert reactivate_response.status_code == 200
+    assert reactivate_response.json()["is_active"] is True
+    assert reactivate_response.json()["deactivated_at"] is None
+
+    rates = {r["id"]: r for r in (await client.get("/api/v1/private-rates", headers=_auth_headers(token_a))).json()}
+    assert rates[first_id]["is_active"] is True
+    assert rates[second_id]["is_active"] is False
+    assert rates[second_id]["deactivated_at"] is not None
+
+
+async def test_deactivating_a_rate_leaves_currency_without_active_rate(client):
+    _, token_a = await _register_and_login_owner(client)
+
+    created = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6"},
+        headers=_auth_headers(token_a),
+    )
+    rate_id = created.json()["id"]
+
+    deactivate_response = await client.patch(
+        f"/api/v1/private-rates/{rate_id}/status",
+        json={"is_active": False},
+        headers=_auth_headers(token_a),
+    )
+    assert deactivate_response.status_code == 200
+    assert deactivate_response.json()["is_active"] is False
+    assert deactivate_response.json()["deactivated_at"] is not None
+
+    rates = (await client.get("/api/v1/private-rates", headers=_auth_headers(token_a))).json()
+    assert all(not r["is_active"] for r in rates)
+
+
+async def test_deactivating_the_only_rate_blocks_transfers_in_that_currency(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    rate = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6"},
+        headers=_auth_headers(token_a),
+    )
+    rate_id = rate.json()["id"]
+
+    await client.patch(
+        f"/api/v1/private-rates/{rate_id}/status",
+        json={"is_active": False},
+        headers=_auth_headers(token_a),
+    )
+
+    transfer_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert transfer_response.status_code == 409
+
+
+async def test_rate_status_update_requires_manage_permission(client):
+    _, token_a = await _register_and_login_owner(client)
+    rate = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6"},
+        headers=_auth_headers(token_a),
+    )
+    rate_id = rate.json()["id"]
+
+    create_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé",
+            "phone": "+224900222222",
+            "password": "EmployeePass123!",
+            "permissions": [],
+        },
+        headers=_auth_headers(token_a),
+    )
+    employee_matricule = create_response.json()["matricule"]
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": employee_matricule, "password": "EmployeePass123!"},
+    )
+    employee_token = login_response.json()["access_token"]
+
+    response = await client.patch(
+        f"/api/v1/private-rates/{rate_id}/status",
+        json={"is_active": False},
+        headers=_auth_headers(employee_token),
+    )
+    assert response.status_code == 403
+
+
+async def test_rate_status_update_unknown_rate_returns_404(client):
+    _, token_a = await _register_and_login_owner(client)
+    response = await client.patch(
+        f"/api/v1/private-rates/{'00000000-0000-0000-0000-000000000000'}/status",
+        json={"is_active": False},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 404
+
+
+async def test_rate_status_update_isolated_between_companies(client):
+    (matricule_a, token_a), (_, token_b) = await _setup_pair(client)
+    rate = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "14.6"},
+        headers=_auth_headers(token_a),
+    )
+    rate_id = rate.json()["id"]
+
+    response = await client.patch(
+        f"/api/v1/private-rates/{rate_id}/status",
+        json={"is_active": False},
+        headers=_auth_headers(token_b),
+    )
+    assert response.status_code == 404
+
+
 async def test_rate_proposal_notifies_other_party(client):
     (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
     create_response = await client.post(

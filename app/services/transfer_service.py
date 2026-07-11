@@ -127,8 +127,8 @@ async def create_transfer(
         )
     if private_rate_row is None:
         raise ConflictError(
-            f"Aucun taux d'envoi privé configuré pour la devise {payload.currency}. "
-            "Configurez-le depuis la page de la collaboration avant de créer cet envoi."
+            f"Aucun taux d'envoi privé actif pour la devise {payload.currency}. "
+            "Configurez-le ou réactivez-le depuis la page Taux d'envoi avant de créer cet envoi."
         )
     private_rate_used = private_rate_row.rate
 

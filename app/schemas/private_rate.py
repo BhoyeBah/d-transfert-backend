@@ -27,6 +27,12 @@ class PrivateRateCreateRequest(BaseModel):
         return value.upper()
 
 
+class PrivateRateStatusUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_active: bool
+
+
 class PrivateRateResponse(BaseModel):
     id: uuid.UUID
     collaboration_id: uuid.UUID | None
