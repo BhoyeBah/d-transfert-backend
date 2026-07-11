@@ -210,6 +210,7 @@ async def create_payment(
             client_debt_amount,
             source_type="payment",
             source_id=payment.id,
+            currency=payload.currency,
             created_by_id=created_by_id,
             note=f"Manquant sur le paiement {reference}",
         )
@@ -221,6 +222,7 @@ async def create_payment(
             -reliquat_amount,
             source_type="payment",
             source_id=payment.id,
+            currency=payload.currency,
             created_by_id=created_by_id,
             note=f"Reliquat crédité au client sur le paiement {reference}",
         )

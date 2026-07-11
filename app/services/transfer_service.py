@@ -231,6 +231,7 @@ async def create_transfer(
             client_debt_amount,
             source_type="transfer",
             source_id=transfer.id,
+            currency=payload.currency,
             created_by_id=created_by_id,
             note=f"Manquant sur l'envoi {reference}",
         )
@@ -242,6 +243,7 @@ async def create_transfer(
             -reliquat_amount,
             source_type="transfer",
             source_id=transfer.id,
+            currency=payload.currency,
             created_by_id=created_by_id,
             note=f"Reliquat crédité au client sur l'envoi {reference}",
         )

@@ -35,6 +35,7 @@ async def apply_balance_delta(
     delta: Decimal,
     source_type: str,
     source_id: uuid.UUID,
+    currency: str,
     created_by_id: uuid.UUID,
     note: str | None = None,
 ) -> ClientBalanceMovement:
@@ -45,6 +46,7 @@ async def apply_balance_delta(
         client_id=client.id,
         source_type=source_type,
         source_id=source_id,
+        currency=currency,
         delta=_quantize(delta),
         balance_before=balance_before,
         balance_after=client.balance,
@@ -67,7 +69,8 @@ async def reverse_movements_for_source(
 ) -> ClientBalanceMovement | None:
     """Annule l'effet net déjà appliqué au client pour cette opération source (rejet/annulation),
     sans supprimer l'historique : crée un mouvement inverse compensant exactement le delta net
-    déjà enregistré (dette initiale ou crédit de reliquat)."""
+    déjà enregistré (dette initiale ou crédit de reliquat). Les mouvements d'une même source
+    partagent toujours la même devise (celle de l'envoi/paiement d'origine)."""
     movements = await client_repository.get_by_source(session, client_id, source_type, source_id)
     net = sum((movement.delta for movement in movements), Decimal("0.00"))
     if net == 0:
@@ -75,8 +78,18 @@ async def reverse_movements_for_source(
     client = await get_client(session, company_id, client_id)
     return await apply_balance_delta(
         session, client, -net, source_type=f"{source_type}_reversal", source_id=source_id,
-        created_by_id=created_by_id, note=note,
+        currency=movements[0].currency, created_by_id=created_by_id, note=note,
     )
+
+
+async def get_balances_by_currency(session: AsyncSession, client_id: uuid.UUID) -> list[tuple[str, Decimal]]:
+    return await client_repository.get_balances_by_currency(session, client_id)
+
+
+async def get_balances_by_currency_for_clients(
+    session: AsyncSession, client_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[tuple[str, Decimal]]]:
+    return await client_repository.get_balances_by_currency_for_clients(session, client_ids)
 
 
 async def get_client(session: AsyncSession, company_id: uuid.UUID, client_id: uuid.UUID) -> Client:

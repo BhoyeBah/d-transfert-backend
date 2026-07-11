@@ -13,12 +13,18 @@ class ClientCreateRequest(BaseModel):
     note: str | None = Field(default=None, max_length=255)
 
 
+class ClientCurrencyBalance(BaseModel):
+    currency: str
+    balance: Decimal
+
+
 class ClientResponse(BaseModel):
     id: uuid.UUID
     name: str
     phone: str
     note: str | None
     balance: Decimal
+    balances: list[ClientCurrencyBalance] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -26,6 +32,7 @@ class ClientBalanceMovementResponse(BaseModel):
     id: uuid.UUID
     source_type: str
     source_id: uuid.UUID
+    currency: str
     delta: Decimal
     balance_before: Decimal
     balance_after: Decimal

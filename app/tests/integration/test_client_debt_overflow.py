@@ -89,6 +89,15 @@ async def test_transfer_overflow_creates_client_debt_with_explicit_client(client
     clients = clients_response.json()
     assert len(clients) == 1
     assert clients[0]["balance"] == "30000.00"
+    assert clients[0]["balances"] == [{"currency": "GNF", "balance": "30000.00"}]
+
+    movements_response = await client.get(
+        f"/api/v1/clients/{clients[0]['id']}/movements", headers=_auth_headers(token_a)
+    )
+    movements = movements_response.json()
+    assert len(movements) == 1
+    assert movements[0]["currency"] == "GNF"
+    assert movements[0]["delta"] == "30000.00"
 
 
 async def test_transfer_overflow_uses_entry_client_when_payload_omits(client):
@@ -178,3 +187,85 @@ async def test_payment_overflow_creates_client_debt(client):
 
     entry_after = await client.get(f"/api/v1/entries/{entry_id}", headers=_auth_headers(token_a))
     assert entry_after.json()["status"] == "consumed"
+
+
+async def test_client_debt_tracked_separately_per_currency(client):
+    """Le même client (identifié par téléphone) peut devoir de l'argent dans plusieurs
+    devises s'il emprunte via des collaborations différentes : le solde doit rester
+    ventilé par devise, jamais additionné en un seul nombre ambigu."""
+    matricule_a, token_a = await _register_and_login_owner(
+        client, company_name="Entreprise Multi A", company_phone="+224897100010"
+    )
+    matricule_b, token_b = await _register_and_login_owner(
+        client, company_name="Entreprise Multi B", company_phone="+224897100011"
+    )
+    matricule_c, token_c = await _register_and_login_owner(
+        client, company_name="Entreprise Multi C", company_phone="+224897100012"
+    )
+
+    collab_gnf = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collab_gnf_id = collab_gnf.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collab_gnf_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates", json={"currency": "GNF", "rate": "15"}, headers=_auth_headers(token_a)
+    )
+
+    collab_xof = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_c, "currency": "XOF", "initial_rate": "1"},
+        headers=_auth_headers(token_a),
+    )
+    collab_xof_id = collab_xof.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collab_xof_id}/accept", headers=_auth_headers(token_c))
+    await client.post(
+        "/api/v1/private-rates", json={"currency": "XOF", "rate": "1"}, headers=_auth_headers(token_a)
+    )
+
+    client_phone = "+224644444444"
+    gnf_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collab_gnf_id,
+            "amount": "80000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+            "client_name": "Client Multi Devise",
+            "client_phone": client_phone,
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert gnf_response.status_code == 201
+
+    xof_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collab_xof_id,
+            "amount": "5000",
+            "currency": "XOF",
+            "beneficiary_phone": "+224600000088",
+            "send_mode": "cash",
+            "client_name": "Client Multi Devise",
+            "client_phone": client_phone,
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert xof_response.status_code == 201
+    assert gnf_response.json()["client_id"] == xof_response.json()["client_id"]
+
+    clients_response = await client.get("/api/v1/clients", headers=_auth_headers(token_a))
+    clients = clients_response.json()
+    assert len(clients) == 1
+    balances = {entry["currency"]: entry["balance"] for entry in clients[0]["balances"]}
+    assert balances == {"GNF": "80000.00", "XOF": "5000.00"}
+
+    movements_response = await client.get(
+        f"/api/v1/clients/{clients[0]['id']}/movements", headers=_auth_headers(token_a)
+    )
+    movements = movements_response.json()
+    movement_currencies = {m["currency"] for m in movements}
+    assert movement_currencies == {"GNF", "XOF"}

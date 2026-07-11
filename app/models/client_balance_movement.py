@@ -16,6 +16,7 @@ class ClientBalanceMovement(Base, UUIDPKMixin, TimestampMixin):
     )
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
     source_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
     delta: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     balance_before: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     balance_after: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)

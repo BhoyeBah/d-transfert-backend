@@ -1,6 +1,7 @@
 import uuid
+from decimal import Decimal
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.client import Client
@@ -75,3 +76,32 @@ async def get_by_source(
         )
     )
     return list(result.scalars().all())
+
+
+async def get_balances_by_currency(session: AsyncSession, client_id: uuid.UUID) -> list[tuple[str, Decimal]]:
+    result = await session.execute(
+        select(ClientBalanceMovement.currency, func.sum(ClientBalanceMovement.delta))
+        .where(ClientBalanceMovement.client_id == client_id)
+        .group_by(ClientBalanceMovement.currency)
+        .having(func.sum(ClientBalanceMovement.delta) != 0)
+        .order_by(ClientBalanceMovement.currency)
+    )
+    return [(currency, amount) for currency, amount in result.all()]
+
+
+async def get_balances_by_currency_for_clients(
+    session: AsyncSession, client_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[tuple[str, Decimal]]]:
+    if not client_ids:
+        return {}
+    result = await session.execute(
+        select(ClientBalanceMovement.client_id, ClientBalanceMovement.currency, func.sum(ClientBalanceMovement.delta))
+        .where(ClientBalanceMovement.client_id.in_(client_ids))
+        .group_by(ClientBalanceMovement.client_id, ClientBalanceMovement.currency)
+        .having(func.sum(ClientBalanceMovement.delta) != 0)
+        .order_by(ClientBalanceMovement.currency)
+    )
+    balances: dict[uuid.UUID, list[tuple[str, Decimal]]] = {client_id: [] for client_id in client_ids}
+    for client_id, currency, amount in result.all():
+        balances[client_id].append((currency, amount))
+    return balances
