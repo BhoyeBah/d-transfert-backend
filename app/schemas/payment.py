@@ -73,6 +73,7 @@ class PaymentResponse(BaseModel):
     note: str | None
     collaborative_rate_used: Decimal
     converted_amount: Decimal
+    settles_debt: bool
     status: PaymentStatus
     proof_id: uuid.UUID | None
     created_by_id: uuid.UUID

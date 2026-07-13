@@ -146,7 +146,7 @@ async def test_payment_from_entry_settles_existing_debt(client):
     assert entry_after.json()["available_by_currency"] == {"GNF": "5000.00"}
 
 
-async def test_net_debtor_cannot_create_payment(client):
+async def test_net_debtor_can_create_payment_that_settles_debt(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
 
     await _create_and_approve_transfer(client, collaboration_id, token_a, token_b, amount="80000")
@@ -156,26 +156,40 @@ async def test_net_debtor_cannot_create_payment(client):
     )
     assert balance_a.json()["balance"] == "-80000.00"
 
-    # A est débiteur net envers B : si A créait un paiement, il aggraverait sa propre dette
-    # au lieu de la régler (le mécanisme n'annule la dette que si le créditeur net l'initie).
-    # C'est donc bloqué, pas juste déconseillé.
-    cash_id = await _create_wallet(client, token_a, "CASH")
+    # A est débiteur net envers B. A peut créer directement le paiement qui règle sa dette : le
+    # sens du mouvement (settles_debt) est déterminé automatiquement d'après son solde net à la
+    # création, pas d'après qui clique "créer" — pas besoin d'attendre que B s'en charge.
+    cash_id = await _create_wallet(client, token_a, "CASH", initial_balance="80000")
     payment_response = await client.post(
         "/api/v1/payments",
         json={
             "collaboration_id": collaboration_id,
             "wallet_id": cash_id,
-            "amount": "10000",
+            "amount": "80000",
             "currency": "GNF",
         },
         headers=_auth_headers(token_a),
     )
-    assert payment_response.status_code == 409
+    assert payment_response.status_code == 201
+    payment = payment_response.json()
+    assert payment["settles_debt"] is True
+    payment_id = payment["id"]
 
-    # B, le créditeur net, reste libre de créer le paiement qui règle la dette.
+    approve_response = await client.post(
+        f"/api/v1/payments/{payment_id}/approve", json={}, headers=_auth_headers(token_b)
+    )
+    assert approve_response.status_code == 200
+
+    balance_a_after = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/balance", headers=_auth_headers(token_a)
+    )
+    assert balance_a_after.json()["balance"] == "0.00"
+
+    # B, le créditeur net à ce stade (solde nul, donc pas débiteur), reste libre de créer un
+    # paiement classique (nouvelle avance, settles_debt=False).
     entry = await client.post(
         "/api/v1/entries",
-        json={"lines": [{"wallet_id": await _create_wallet(client, token_b, "CASH2"), "amount": "80000", "currency": "GNF"}]},
+        json={"lines": [{"wallet_id": await _create_wallet(client, token_b, "CASH2"), "amount": "5000", "currency": "GNF"}]},
         headers=_auth_headers(token_b),
     )
     payment_response = await client.post(
@@ -183,12 +197,13 @@ async def test_net_debtor_cannot_create_payment(client):
         json={
             "collaboration_id": collaboration_id,
             "entry_id": entry.json()["id"],
-            "amount": "80000",
+            "amount": "5000",
             "currency": "GNF",
         },
         headers=_auth_headers(token_b),
     )
     assert payment_response.status_code == 201
+    assert payment_response.json()["settles_debt"] is False
 
 
 async def test_payment_direct_wallet_outflow_deferred_to_approval(client):

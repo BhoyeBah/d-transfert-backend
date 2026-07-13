@@ -101,21 +101,15 @@ async def create_payment(
         session, collaboration.current_rate_id
     )
 
-    # Un paiement annule une dette existante en inversant les rôles débiteur/créditeur d'un
-    # transfert : le créateur du paiement devient débiteur du nouveau mouvement, ce qui n'annule
-    # la dette que si le créateur est déjà le créditeur net (celui à qui l'argent est dû).
-    # Si le débiteur net créait lui-même un paiement, il aggraverait sa propre dette au lieu de
-    # la régler, sans aucun avertissement — c'est donc au créditeur d'initier le règlement, et
-    # au débiteur de l'approuver.
+    # Le sens du mouvement de solde est figé ici selon le solde net du créateur au moment de la
+    # création (cf. approve_payment) : s'il est déjà débiteur net, ce paiement règle sa dette
+    # (mouvement inversé par rapport à un Transfer) ; sinon c'est une nouvelle avance (même sens
+    # qu'un Transfer). Ça permet au débiteur ET au créditeur de créer un paiement indifféremment,
+    # la dette se réglant correctement dans les deux cas.
     current_balance = await collaborator_balance_repository.get_balance_for_company(
         session, collaboration.id, company_id
     )
-    if current_balance < 0:
-        raise ConflictError(
-            "Vous êtes actuellement débiteur sur cette collaboration : créer un paiement "
-            "aggraverait votre dette au lieu de la régler. C'est à votre collaborateur "
-            "(à qui la somme est due) de créer ce paiement ; vous n'aurez qu'à l'approuver."
-        )
+    settles_debt = current_balance < 0
 
     entry = None
     lines: list = []
@@ -203,6 +197,7 @@ async def create_payment(
         converted_amount=converted_amount,
         status=PaymentStatus.PENDING,
         created_by_id=created_by_id,
+        settles_debt=settles_debt,
     )
     session.add(payment)
     await session.flush()
@@ -287,9 +282,14 @@ async def approve_payment(
     if payment.status != PaymentStatus.PENDING:
         raise ConflictError("Ce paiement n'est plus en attente.")
 
-    # Sens inverse d'un Transfer : le créateur du paiement (celui qui a reçu/réglé les fonds)
-    # devient débiteur du nouveau mouvement, ce qui vient annuler la dette existante du
-    # collaborateur concerné (cf. exemple chiffré section 6 du cahier des charges).
+    # Sens figé à la création (payment.settles_debt) : si le créateur était débiteur net, ce
+    # paiement règle sa dette, donc le mouvement l'inverse (créateur=créditeur du mouvement) ;
+    # sinon c'est une nouvelle avance, même sens qu'un Transfer (créateur=débiteur).
+    if payment.settles_debt:
+        debtor_company_id, creditor_company_id = company_id, payment.company_id
+    else:
+        debtor_company_id, creditor_company_id = payment.company_id, company_id
+
     await collaborator_balance_repository.create(
         session,
         collaboration_id=collaboration.id,
@@ -297,8 +297,8 @@ async def approve_payment(
         source_id=payment.id,
         currency=collaboration.currency,
         amount=payment.converted_amount,
-        debtor_company_id=payment.company_id,
-        creditor_company_id=company_id,
+        debtor_company_id=debtor_company_id,
+        creditor_company_id=creditor_company_id,
     )
 
     if payment.wallet_id is not None:

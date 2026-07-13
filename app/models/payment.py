@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,6 +45,12 @@ class Payment(Base, UUIDPKMixin, TimestampMixin):
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     collaborative_rate_used: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     converted_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    # Figé à la création (cf. payment_service.create_payment) selon le solde net du créateur à cet
+    # instant : True si le créateur était débiteur net (ce paiement règle sa dette, donc le
+    # mouvement de solde inverse débiteur/créditeur par rapport à un Transfer), False sinon
+    # (nouvelle avance, même sens qu'un Transfer). Figé plutôt que recalculé à l'approbation pour
+    # ne pas dépendre d'un solde qui peut changer entre-temps.
+    settles_debt: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus, native_enum=False, length=16), default=PaymentStatus.PENDING, nullable=False
     )
