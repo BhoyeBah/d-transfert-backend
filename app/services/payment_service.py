@@ -334,8 +334,17 @@ async def approve_payment(
     await audit_service.log_action(
         session, company_id, approved_by_user_id, "payment.approve", "payment", payment.id
     )
+    await notification_service.notify(
+        session,
+        payment.company_id,
+        NotificationType.PAYMENT_APPROVED,
+        f"Votre paiement {payment.reference} a été approuvé.",
+        link_type="payment",
+        link_id=payment.id,
+    )
     await session.commit()
     return payment
+
 
 
 async def reject_payment(
@@ -461,11 +470,26 @@ async def list_payments(session: AsyncSession, company_id: uuid.UUID) -> list[Pa
 
 
 async def list_payments_page(
-    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    params: PageParams,
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> tuple[list[Payment], int]:
     return await payment_repository.list_for_company_page(
-        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+        session,
+        company_id,
+        params.page,
+        params.page_size,
+        params.search,
+        params.sort_by,
+        params.sort_dir,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
     )
+
 
 
 async def get_status_history(

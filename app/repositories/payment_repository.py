@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func, or_, select
@@ -67,6 +68,9 @@ async def list_for_company_page(
     search: str | None = None,
     sort_by: str | None = None,
     sort_dir: str = "desc",
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> tuple[list[Payment], int]:
     stmt = (
         select(Payment)
@@ -78,6 +82,14 @@ async def list_for_company_page(
             )
         )
     )
+    if status:
+        stmt = stmt.where(Payment.status == status)
+    if start_date:
+        stmt = stmt.where(Payment.created_at >= start_date)
+    if end_date:
+        from datetime import datetime, time
+        end_dt = datetime.combine(end_date, time.max)
+        stmt = stmt.where(Payment.created_at <= end_dt)
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(

@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.exceptions import AppError, NotFoundError
 from app.models.proof import Proof
-from app.repositories import proof_repository
-from app.services import payment_service, transfer_service
+from app.models.notification import NotificationType
+from app.repositories import proof_repository, collaboration_repository
+from app.services import payment_service, transfer_service, notification_service
 
 settings = get_settings()
 
@@ -51,7 +52,7 @@ async def upload_transfer_proof(
     content: bytes,
     note: str | None,
 ) -> Proof:
-    await transfer_service.get_transfer(session, company_id, transfer_id)
+    transfer = await transfer_service.get_transfer(session, company_id, transfer_id)
     extension = _validate_file(content_type, len(content))
     storage_path = _store_file(company_id, extension, content)
     proof = Proof(
@@ -65,6 +66,23 @@ async def upload_transfer_proof(
         note=note,
     )
     proof = await proof_repository.create(session, proof)
+    
+    collaboration = await collaboration_repository.get_by_id(session, transfer.collaboration_id)
+    if collaboration:
+        other_party_id = (
+            collaboration.target_company_id
+            if company_id == collaboration.initiator_company_id
+            else collaboration.initiator_company_id
+        )
+        await notification_service.notify(
+            session,
+            other_party_id,
+            NotificationType.PROOF_UPLOADED,
+            f"Une preuve a été ajoutée pour l'envoi {transfer.reference}.",
+            link_type="transfer",
+            link_id=transfer.id,
+        )
+
     await session.commit()
     return proof
 
@@ -79,7 +97,7 @@ async def upload_payment_proof(
     content: bytes,
     note: str | None,
 ) -> Proof:
-    await payment_service.get_payment(session, company_id, payment_id)
+    payment = await payment_service.get_payment(session, company_id, payment_id)
     extension = _validate_file(content_type, len(content))
     storage_path = _store_file(company_id, extension, content)
     proof = Proof(
@@ -93,6 +111,23 @@ async def upload_payment_proof(
         note=note,
     )
     proof = await proof_repository.create(session, proof)
+
+    collaboration = await collaboration_repository.get_by_id(session, payment.collaboration_id)
+    if collaboration:
+        other_party_id = (
+            collaboration.target_company_id
+            if company_id == collaboration.initiator_company_id
+            else collaboration.initiator_company_id
+        )
+        await notification_service.notify(
+            session,
+            other_party_id,
+            NotificationType.PROOF_UPLOADED,
+            f"Une preuve a été ajoutée pour le paiement {payment.reference}.",
+            link_type="payment",
+            link_id=payment.id,
+        )
+
     await session.commit()
     return proof
 

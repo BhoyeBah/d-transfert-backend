@@ -13,6 +13,7 @@ from app.schemas.employee import (
     EmployeeStatusUpdateRequest,
 )
 from app.schemas.pagination import Page, PageParams, page_params
+from app.schemas.audit_log import AuditLogResponse
 from app.services import employee_service
 
 router = APIRouter(prefix="/api/v1/employees", tags=["employees"])
@@ -74,3 +75,15 @@ async def update_employee_status(
     return await employee_service.set_active_status(
         db, company_id, current_user.id, employee_id, payload.is_active
     )
+
+
+@router.get("/{employee_id}/audit-activity", response_model=list[AuditLogResponse])
+async def get_employee_activity(
+    employee_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(_require_manage),
+) -> list[AuditLogResponse]:
+    logs = await employee_service.get_employee_activity(db, company_id, employee_id)
+    return [AuditLogResponse.model_validate(log, from_attributes=True) for log in logs]
+

@@ -33,3 +33,10 @@ async def list_all_page(session: AsyncSession, params: PageParams) -> tuple[list
     return await audit_log_repository.list_all_page(
         session, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
     )
+
+
+async def list_for_employee(
+    session: AsyncSession, company_id: uuid.UUID, user_id: uuid.UUID
+) -> list[AuditLog]:
+    return await audit_log_repository.list_by_employee(session, company_id, user_id)
+

@@ -349,8 +349,17 @@ async def approve_transfer(
     await audit_service.log_action(
         session, company_id, acted_by_user_id, "transfer.approve", "transfer", transfer.id
     )
+    await notification_service.notify(
+        session,
+        transfer.company_id,
+        NotificationType.TRANSFER_APPROVED,
+        f"Votre envoi {transfer.reference} a été approuvé.",
+        link_type="transfer",
+        link_id=transfer.id,
+    )
     await session.commit()
     return transfer
+
 
 
 async def reject_transfer(

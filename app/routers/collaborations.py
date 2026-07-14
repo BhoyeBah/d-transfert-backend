@@ -221,3 +221,33 @@ async def get_balance(
     return CollaboratorBalanceResponse(
         collaboration_id=collaboration_id, currency=collaboration.currency, balance=balance
     )
+
+
+@router.post("/{collaboration_id}/suspend", response_model=CollaborationResponse)
+async def suspend_collaboration(
+    collaboration_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_manage),
+) -> CollaborationResponse:
+    collaboration = await collaboration_service.suspend_collaboration(
+        db, company_id, current_user.id, collaboration_id
+    )
+    # We fetch the rate to return the proper CollaborationResponse
+    _, rate = await collaboration_service.get_collaboration(db, company_id, collaboration_id)
+    return await _to_response(db, company_id, collaboration, rate)
+
+
+@router.post("/{collaboration_id}/archive", response_model=CollaborationResponse)
+async def archive_collaboration(
+    collaboration_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_manage),
+) -> CollaborationResponse:
+    collaboration = await collaboration_service.archive_collaboration(
+        db, company_id, current_user.id, collaboration_id
+    )
+    _, rate = await collaboration_service.get_collaboration(db, company_id, collaboration_id)
+    return await _to_response(db, company_id, collaboration, rate)
+
