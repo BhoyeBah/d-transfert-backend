@@ -21,6 +21,7 @@ from app.repositories import (
     company_repository,
     password_reset_otp_repository,
     platform_setting_repository,
+    revoked_token_repository,
     user_repository,
 )
 from app.schemas.auth import RegisterRequest, RegisterResponse
@@ -171,9 +172,15 @@ async def refresh_tokens(db: AsyncSession, refresh_token: str) -> tuple[str, str
     except (KeyError, ValueError) as exc:
         raise UnauthorizedError("Token invalide.") from exc
 
+    if await revoked_token_repository.is_revoked(db, payload["jti"]):
+        raise UnauthorizedError("Session terminée, reconnectez-vous.")
+
     user = await user_repository.get_by_id(db, user_id)
     if user is None or not user.is_active or _is_locked(user):
         raise UnauthorizedError("Compte introuvable, désactivé ou verrouillé.")
+
+    if user.password_changed_at is not None and payload["iat"] < user.password_changed_at.timestamp():
+        raise UnauthorizedError("Session terminée suite à un changement de mot de passe, reconnectez-vous.")
 
     if not user.is_super_admin:
         await _ensure_company_active(db, user)
@@ -238,4 +245,28 @@ async def reset_password(
     user.password_hash = hash_password(new_password)
     user.failed_login_attempts = 0
     user.locked_until = None
+    # Invalide d'un coup toutes les sessions déjà émises (access et refresh tokens) : leur
+    # `iat` est forcément antérieur à cet instant, cf. la vérification dans
+    # app/core/permissions.py et refresh_tokens ci-dessus.
+    user.password_changed_at = datetime.now(timezone.utc)
+    await db.commit()
+
+
+async def logout(db: AsyncSession, access_token: str, refresh_token: str | None) -> None:
+    access_payload = decode_token(access_token, TokenType.ACCESS)
+    await revoked_token_repository.revoke(
+        db, access_payload["jti"], datetime.fromtimestamp(access_payload["exp"], tz=timezone.utc)
+    )
+
+    if refresh_token is not None:
+        try:
+            refresh_payload = decode_token(refresh_token, TokenType.REFRESH)
+        except UnauthorizedError:
+            # Refresh token déjà expiré/invalide : rien de plus à révoquer.
+            pass
+        else:
+            await revoked_token_repository.revoke(
+                db, refresh_payload["jti"], datetime.fromtimestamp(refresh_payload["exp"], tz=timezone.utc)
+            )
+
     await db.commit()

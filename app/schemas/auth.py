@@ -66,6 +66,12 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class LogoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str | None = None
+
+
 class ForgotPasswordRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

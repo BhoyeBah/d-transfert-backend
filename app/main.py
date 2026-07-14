@@ -1,6 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
+from app.core.rate_limit import limiter
 from app.routers import (
     admin,
     audit_logs,
@@ -35,6 +40,25 @@ app = FastAPI(
 )
 
 register_exception_handlers(app)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+
+# API JSON pure (jamais de rendu HTML de contenu utilisateur ici, le frontend Next.js
+# porte sa propre CSP) : X-Frame-Options/X-Content-Type-Options/Referrer-Policy suffisent
+# côté API. HSTS uniquement en production pour ne pas piéger un accès direct en HTTP en
+# développement (le navigateur mémoriserait l'en-tête et refuserait ensuite le HTTP local).
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if get_settings().environment == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    return response
 
 app.include_router(auth.router)
 app.include_router(companies.router)

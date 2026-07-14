@@ -15,7 +15,7 @@ réelle.
 
 | Module | Statut | Détail |
 |---|---|---|
-| Authentification | Conforme | Inscription, connexion, refresh token, reset par OTP (code à 6 chiffres, expiration 10 min, usage unique), verrouillage après 5 échecs (15 min), `/me`. Inscription en attente de validation plateforme (`require_company_approval`) configurable par le Super Admin. |
+| Authentification | Conforme | Inscription, connexion, refresh token, reset par OTP (code à 6 chiffres, expiration 10 min, usage unique), verrouillage après 5 échecs (15 min), `/me`. Inscription en attente de validation plateforme (`require_company_approval`) configurable par le Super Admin. Sessions sécurisées (§30.1) : `POST /auth/logout` révoque explicitement l'access et le refresh token (table `revoked_tokens`) ; un reset de mot de passe invalide immédiatement toutes les sessions déjà émises (`users.password_changed_at`). Rate limiting par IP sur les endpoints d'authentification (`slowapi`). |
 | Gestion entreprise | Conforme | Profil, lookup public par matricule (champs limités), activation automatique par défaut ou mise en attente de validation Super Admin selon le paramètre plateforme. |
 | Gestion employés | Conforme | Création, liste, activation/désactivation, permissions. |
 | Rôles et permissions | Conforme | RBAC backend, filtrage des actions par permission, 11 permissions du cahier des charges + 4 supplémentaires. |
@@ -82,7 +82,7 @@ réelle.
   `test_employee_dashboard_hides_wallets_without_permission`
   (`test_dashboard_and_reports.py`)
 
-Suite complète : **170 tests passent**. `alembic upgrade head` : propre, sans dérive.
+Suite complète : **218 tests passent**. `alembic upgrade head` : propre, sans dérive.
 Build + lint + typecheck frontend : clean.
 
 ## Écarts restants (hors MVP ou différés délibérément, avec accord explicite)

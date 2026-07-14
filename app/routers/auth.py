@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.permissions import CurrentUser, get_current_user
+from app.core.rate_limit import limiter
 from app.repositories import user_repository
 from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
+    LogoutRequest,
     MeResponse,
     RefreshRequest,
     RegisterRequest,
@@ -20,12 +22,16 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)) -> RegisterResponse:
+@limiter.limit("5/minute")
+async def register(
+    request: Request, payload: RegisterRequest, db: AsyncSession = Depends(get_db)
+) -> RegisterResponse:
     return await auth_service.register(db, payload)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+@limiter.limit("10/minute")
+async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     access_token, refresh_token = await auth_service.login(db, payload.matricule, payload.password)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
@@ -36,13 +42,32 @@ async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)) -
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    payload: LogoutRequest,
+    db: AsyncSession = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+    authorization: str | None = Header(default=None),
+) -> None:
+    # get_current_user a déjà validé le token (signature, expiration, non-révoqué) ; on
+    # récupère la valeur brute ici pour en extraire le jti et le révoquer explicitement.
+    access_token = (authorization or "").removeprefix("Bearer ")
+    await auth_service.logout(db, access_token, payload.refresh_token)
+
+
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
-async def forgot_password(payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)) -> None:
+@limiter.limit("5/minute")
+async def forgot_password(
+    request: Request, payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+) -> None:
     await auth_service.request_password_reset(db, payload.matricule)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
-async def reset_password(payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)) -> None:
+@limiter.limit("10/minute")
+async def reset_password(
+    request: Request, payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+) -> None:
     await auth_service.reset_password(db, payload.matricule, payload.otp_code, payload.new_password)
 
 

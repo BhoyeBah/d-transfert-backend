@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dtransfert}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini (ne jamais utiliser la valeur du docker-compose.yml de développement)}
+      POSTGRES_DB: ${POSTGRES_DB:-dtransfert}
+    volumes:
+      - dtransfert_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dtransfert}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-dtransfert}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD doit être défini}@postgres:5432/${POSTGRES_DB:-dtransfert}
+      # Générer avec `openssl rand -hex 32` — ne jamais réutiliser la valeur par défaut
+      # du dépôt (app/core/config.py refuse de démarrer en production si c'est le cas).
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY doit être défini, ex. via `openssl rand -hex 32`}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
+    volumes:
+      # Sans ce volume nommé, chaque redéploiement du conteneur backend efface les
+      # preuves déjà uploadées (stockage local — cf. cahier des charges §36.2, qui
+      # anticipe explicitement une migration vers un stockage S3-compatible plus tard).
+      - dtransfert_uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://backend:8000
+      # Laisser à "false" (défaut) dès que le reverse-proxy sert bien en HTTPS — ne
+      # passer à "true" que temporairement si le domaine n'a pas encore de certificat.
+      COOKIE_INSECURE: ${COOKIE_INSECURE:-false}
+
+  reverse-proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - dtransfert_caddy_data:/data
+      - dtransfert_caddy_config:/config
+    environment:
+      # Nom de domaine réel pointant vers ce serveur — Caddy obtient et renouvelle
+      # automatiquement un certificat Let's Encrypt pour ce domaine. Laisser à
+      # "localhost" uniquement pour un test local (pas de TLS automatique dans ce cas).
+      DOMAIN: ${DOMAIN:-localhost}
+    depends_on:
+      - frontend
+
+volumes:
+  dtransfert_postgres_data:
+  dtransfert_uploads:
+  dtransfert_caddy_data:
+  dtransfert_caddy_config:

@@ -289,3 +289,70 @@ async def test_auth_me_returns_profile_and_permissions(client):
 async def test_auth_me_requires_authentication(client):
     response = await client.get("/api/v1/auth/me")
     assert response.status_code == 401
+
+
+async def test_logout_revokes_access_and_refresh_tokens(client):
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    access_token = login_response.json()["access_token"]
+    refresh_token = login_response.json()["refresh_token"]
+
+    logout_response = await client.post(
+        "/api/v1/auth/logout",
+        json={"refresh_token": refresh_token},
+        headers=_auth_headers(access_token),
+    )
+    assert logout_response.status_code == 204
+
+    me_after_logout = await client.get("/api/v1/auth/me", headers=_auth_headers(access_token))
+    assert me_after_logout.status_code == 401
+
+    refresh_after_logout = await client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh_after_logout.status_code == 401
+
+
+async def test_password_reset_invalidates_previously_issued_tokens(client, caplog):
+    register_response = await client.post("/api/v1/auth/register", json=_register_payload())
+    matricule = register_response.json()["registration_code"]
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": matricule, "password": "SuperSecret123!"}
+    )
+    access_token_before_reset = login_response.json()["access_token"]
+
+    with caplog.at_level("INFO", logger="dtransfert.auth"):
+        await client.post("/api/v1/auth/forgot-password", json={"matricule": matricule})
+    match = re.search(r"OTP de réinitialisation généré pour user_id=.*: (\d{6})", caplog.text)
+    assert match is not None
+    otp_code = match.group(1)
+
+    reset_response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "matricule": matricule,
+            "otp_code": otp_code,
+            "new_password": "NewSecret456!",
+            "new_password_confirmation": "NewSecret456!",
+        },
+    )
+    assert reset_response.status_code == 204
+
+    me_with_old_token = await client.get("/api/v1/auth/me", headers=_auth_headers(access_token_before_reset))
+    assert me_with_old_token.status_code == 401
+
+
+async def test_register_is_rate_limited_per_ip(client):
+    for i in range(5):
+        response = await client.post(
+            "/api/v1/auth/register",
+            json=_register_payload(company_name=f"Rate {i}", company_phone=f"+22460000{i:04d}"),
+        )
+        assert response.status_code == 201
+
+    sixth_response = await client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(company_name="Rate 6", company_phone="+224600009999"),
+    )
+    assert sixth_response.status_code == 429

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.core.database import get_db
 from app.core.permission_codes import PERMISSION_DESCRIPTIONS, RoleCode
+from app.core.rate_limit import limiter
 from app.main import app
 from app.models.base import Base
 from app.models.role import Permission, Role
@@ -58,6 +59,10 @@ async def db_session():
 
 @pytest.fixture
 async def client(db_session):
+    # Le rate limiting (slowapi) est keyé par IP ; via ASGITransport, toutes les requêtes
+    # de test partagent la même adresse ("testclient"), donc sans ce reset les compteurs
+    # s'accumuleraient d'un test à l'autre au lieu de repartir de zéro à chaque test.
+    limiter.reset()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

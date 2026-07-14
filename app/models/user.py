@@ -31,3 +31,7 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Tout token émis avant cette date est rejeté (cf. app/core/permissions.py et
+    # auth_service.refresh_tokens) — bascule à chaque reset de mot de passe pour invalider
+    # d'un coup toutes les sessions existantes, sans avoir à énumérer chaque token émis.
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

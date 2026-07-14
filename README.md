@@ -32,15 +32,18 @@ Un `docker-compose.yml` fournit une instance PostgreSQL prête à l'emploi pour 
 docker compose up -d
 ```
 
-Cela démarre PostgreSQL sur `localhost:5432` avec l'utilisateur/mot de passe/base
-`dtransfert`/`dtransfert`/`dtransfert` (voir `docker-compose.yml`).
+Cela démarre PostgreSQL sur `localhost:55432` (voir le mapping de port dans
+`docker-compose.yml`) avec l'utilisateur/mot de passe/base `dtransfert`/`dtransfert`/`dtransfert`.
+Le port 55432 (plutôt que le 5432 standard) évite un conflit si un PostgreSQL natif tourne déjà
+sur la machine — dans ce cas, adaptez `DATABASE_URL` dans `.env` en conséquence (le défaut du
+paquet pointe vers `localhost:5432`, pas vers l'instance Docker).
 
 Pour les tests, une base **séparée** est utilisée (`dtransfert_test`, voir
 `app/tests/conftest.py`) afin de ne jamais toucher aux données de développement. Créez-la une
 fois :
 
 ```bash
-psql "postgresql://dtransfert:dtransfert@localhost:5432/postgres" -c "CREATE DATABASE dtransfert_test;"
+psql "postgresql://dtransfert:dtransfert@localhost:55432/postgres" -c "CREATE DATABASE dtransfert_test;"
 ```
 
 ## Variables d'environnement
@@ -154,3 +157,19 @@ app/
   tests/       tests d'intégration (via HTTP réel) et unitaires
 alembic/       migrations, une par phase fonctionnelle
 ```
+
+## Déploiement en production
+
+`docker-compose.prod.yml` fournit une stack complète (Postgres, backend, frontend,
+reverse-proxy Caddy avec HTTPS automatique) :
+
+```bash
+cp .env.prod.example .env.prod   # remplir les valeurs, voir les commentaires du fichier
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+```
+
+Le fichier refuse de démarrer sans que `POSTGRES_PASSWORD` et `JWT_SECRET_KEY` soient
+explicitement définis (jamais de valeur par défaut en clair pour ces secrets). Voir
+`PRODUCTION_READINESS.md` pour le diagnostic complet de préparation à la production
+(sécurité, infrastructure, observabilité) et ce qui reste à traiter au niveau
+infrastructure (sauvegardes Postgres, alerting externe).

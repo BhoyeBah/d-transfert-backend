@@ -10,7 +10,7 @@ from app.core.exceptions import PermissionDeniedError, UnauthorizedError
 from app.core.security import TokenType, decode_token
 from app.models.company import CompanyStatus
 from app.core.permission_codes import PermissionCode
-from app.repositories import company_repository, user_repository
+from app.repositories import company_repository, revoked_token_repository, user_repository
 
 
 @dataclass(frozen=True)
@@ -37,9 +37,15 @@ async def get_current_user(
     except (KeyError, ValueError) as exc:
         raise UnauthorizedError("Token invalide.") from exc
 
+    if await revoked_token_repository.is_revoked(db, payload["jti"]):
+        raise UnauthorizedError("Session terminée, reconnectez-vous.")
+
     user = await user_repository.get_by_id(db, user_id)
     if user is None or not user.is_active:
         raise UnauthorizedError("Compte introuvable ou désactivé.")
+
+    if user.password_changed_at is not None and payload["iat"] < user.password_changed_at.timestamp():
+        raise UnauthorizedError("Session terminée suite à un changement de mot de passe, reconnectez-vous.")
 
     if user.company_id is not None:
         company = await company_repository.get_by_id(db, user.company_id)
