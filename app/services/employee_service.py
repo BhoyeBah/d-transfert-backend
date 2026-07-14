@@ -141,3 +141,13 @@ async def set_active_status(
     )
     await db.commit()
     return await _to_response(db, user)
+
+
+async def get_employee_activity(
+    db: AsyncSession, company_id: uuid.UUID, employee_id: uuid.UUID
+) -> list:
+    user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
+    if user is None:
+        raise NotFoundError("Employé introuvable.")
+    return await audit_service.list_for_employee(db, company_id, employee_id)
+

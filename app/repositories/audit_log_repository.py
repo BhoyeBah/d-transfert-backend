@@ -62,3 +62,15 @@ async def list_all_page(
     column = _SORTABLE_COLUMNS.get(sort_by, AuditLog.created_at)
     stmt = stmt.order_by(column.asc() if sort_dir == "asc" else column.desc())
     return await paginate(session, stmt, page, page_size)
+
+
+async def list_by_employee(
+    session: AsyncSession, company_id: uuid.UUID, user_id: uuid.UUID
+) -> list[AuditLog]:
+    result = await session.execute(
+        select(AuditLog)
+        .where(AuditLog.company_id == company_id, AuditLog.user_id == user_id)
+        .order_by(AuditLog.created_at.desc())
+    )
+    return list(result.scalars().all())
+

@@ -92,3 +92,10 @@ class ResetPasswordRequest(BaseModel):
         if info.data.get("new_password") is not None and value != info.data["new_password"]:
             raise ValueError("Les mots de passe ne correspondent pas.")
         return value
+
+
+class LogoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    refresh_token: str
+

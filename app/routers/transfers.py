@@ -1,6 +1,7 @@
 import uuid
+from datetime import date
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,10 +73,15 @@ async def list_transfers(
 async def list_transfers_page(
     company_id: uuid.UUID = Depends(get_company_scope),
     params: PageParams = Depends(page_params),
+    status: str | None = Query(default=None),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
     _current_user: CurrentUser = Depends(_require_view_access),
 ) -> Page[TransferResponse]:
-    transfers, total = await transfer_service.list_transfers_page(db, company_id, params)
+    transfers, total = await transfer_service.list_transfers_page(
+        db, company_id, params, status=status, start_date=start_date, end_date=end_date
+    )
     items = [_serialize(transfer, company_id) for transfer in transfers]
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 

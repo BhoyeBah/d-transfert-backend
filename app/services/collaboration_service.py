@@ -310,3 +310,60 @@ async def get_balance(session: AsyncSession, company_id: uuid.UUID, collaboratio
     return await collaborator_balance_repository.get_balance_for_company(
         session, collaboration_id, company_id
     )
+
+
+async def suspend_collaboration(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
+    collaboration_id: uuid.UUID,
+) -> Collaboration:
+    collaboration = await _get_owned_collaboration(session, company_id, collaboration_id)
+    if collaboration.status != CollaborationStatus.ACCEPTED:
+        raise ConflictError("Seule une collaboration acceptée peut être suspendue.")
+
+    collaboration.status = CollaborationStatus.SUSPENDED
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.suspend", "collaboration", collaboration.id
+    )
+
+    other_party = _other_party(collaboration, company_id)
+    await notification_service.notify(
+        session,
+        other_party,
+        NotificationType.COLLABORATION_SUSPENDED,
+        "Votre collaboration a été suspendue par votre partenaire.",
+        link_type="collaboration",
+        link_id=collaboration.id,
+    )
+    await session.commit()
+    return collaboration
+
+
+async def archive_collaboration(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
+    collaboration_id: uuid.UUID,
+) -> Collaboration:
+    collaboration = await _get_owned_collaboration(session, company_id, collaboration_id)
+    if collaboration.status not in (CollaborationStatus.ACCEPTED, CollaborationStatus.SUSPENDED):
+        raise ConflictError("Seule une collaboration acceptée ou suspendue peut être archivée.")
+
+    collaboration.status = CollaborationStatus.ARCHIVED
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.archive", "collaboration", collaboration.id
+    )
+
+    other_party = _other_party(collaboration, company_id)
+    await notification_service.notify(
+        session,
+        other_party,
+        NotificationType.COLLABORATION_ARCHIVED,
+        "Votre collaboration a été archivée par votre partenaire.",
+        link_type="collaboration",
+        link_id=collaboration.id,
+    )
+    await session.commit()
+    return collaboration
+

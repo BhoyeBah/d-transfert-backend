@@ -12,13 +12,19 @@ class NotificationType(StrEnum):
     COLLABORATION_REQUEST = "collaboration_request"
     COLLABORATION_ACCEPTED = "collaboration_accepted"
     COLLABORATION_REJECTED = "collaboration_rejected"
+    COLLABORATION_SUSPENDED = "collaboration_suspended"
+    COLLABORATION_ARCHIVED = "collaboration_archived"
     TRANSFER_PENDING = "transfer_pending"
+    TRANSFER_APPROVED = "transfer_approved"
     TRANSFER_REJECTED = "transfer_rejected"
     TRANSFER_CANCELLED = "transfer_cancelled"
     PAYMENT_PENDING = "payment_pending"
+    PAYMENT_APPROVED = "payment_approved"
     PAYMENT_REJECTED = "payment_rejected"
     PAYMENT_CANCELLED = "payment_cancelled"
     RATE_PROPOSED = "rate_proposed"
+    PROOF_UPLOADED = "proof_uploaded"
+
 
 
 class Notification(Base, UUIDPKMixin, TimestampMixin):
