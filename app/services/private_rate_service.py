@@ -5,15 +5,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.models.private_sending_rate import PrivateSendingRate
-from app.repositories import private_rate_repository
+from app.repositories import collaboration_repository, private_rate_repository
 from app.schemas.private_rate import PrivateRateCreateRequest
+
+
+async def _resolve_target_currency(
+    session: AsyncSession, payload: PrivateRateCreateRequest
+) -> str | None:
+    # Un taux lié à une collaboration précise convertit forcément vers la devise de CETTE
+    # collaboration — toute devise cible explicite est ignorée pour éviter une incohérence.
+    if payload.collaboration_id is not None:
+        collaboration = await collaboration_repository.get_by_id(session, payload.collaboration_id)
+        if collaboration is None:
+            raise NotFoundError("Collaboration introuvable.")
+        return collaboration.currency
+    # Pas de collaboration liée : si l'appelant ne précise pas de devise cible, le taux reste
+    # une règle "toutes destinations" (None), exactement le comportement d'avant ce champ.
+    return payload.target_currency
 
 
 async def set_rate(
     session: AsyncSession, company_id: uuid.UUID, created_by_id: uuid.UUID, payload: PrivateRateCreateRequest
 ) -> PrivateSendingRate:
+    target_currency = await _resolve_target_currency(session, payload)
+
     existing = await private_rate_repository.get_active_by_scope(
-        session, company_id, payload.collaboration_id, payload.currency, payload.operation_type
+        session, company_id, payload.collaboration_id, payload.currency, target_currency, payload.operation_type
     )
     if existing is not None:
         existing.is_active = False
@@ -25,6 +42,7 @@ async def set_rate(
         country=payload.country,
         operation_type=payload.operation_type,
         currency=payload.currency,
+        target_currency=target_currency,
         rate=payload.rate,
         is_active=True,
         created_by_id=created_by_id,
@@ -51,7 +69,7 @@ async def set_active_status(
         # prochains envois : réactiver ce taux désactive donc celui actuellement actif dans
         # le même emplacement, s'il y en a un autre.
         current_active = await private_rate_repository.get_active_by_scope(
-            session, company_id, rate.collaboration_id, rate.currency, rate.operation_type
+            session, company_id, rate.collaboration_id, rate.currency, rate.target_currency, rate.operation_type
         )
         if current_active is not None and current_active.id != rate.id:
             current_active.is_active = False

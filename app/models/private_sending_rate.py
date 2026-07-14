@@ -21,6 +21,12 @@ class PrivateSendingRate(Base, UUIDPKMixin, TimestampMixin):
     country: Mapped[str | None] = mapped_column(String(64), nullable=True)
     operation_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    # Devise CIBLE de la paire (ex. XOF -> GNF) : rend explicite vers quelle devise ce taux
+    # convertit, au lieu de le déduire implicitement de la devise de la collaboration liée
+    # (ambigu pour un taux global partagé entre plusieurs collaborations de devises différentes).
+    # NULL = "toutes destinations" (comportement historique d'un taux créé sans choisir de
+    # devise cible, conservé pour compatibilité) ; une paire exacte est toujours préférée.
+    target_currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
     rate: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_by_id: Mapped[uuid.UUID] = mapped_column(

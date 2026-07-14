@@ -106,6 +106,102 @@ async def test_target_can_reject_collaboration(client):
     assert response.json()["status"] == "rejected"
 
 
+async def test_only_initiator_can_cancel_pending_collaboration(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+
+    forbidden_response = await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/cancel", headers=_auth_headers(token_b)
+    )
+    assert forbidden_response.status_code == 403
+
+    cancel_response = await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/cancel", headers=_auth_headers(token_a)
+    )
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["status"] == "cancelled"
+
+    again_response = await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/cancel", headers=_auth_headers(token_a)
+    )
+    assert again_response.status_code == 409
+
+
+async def test_cancelled_collaboration_frees_up_new_request(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    payload = {"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"}
+    create_response = await client.post(
+        "/api/v1/collaborations", json=payload, headers=_auth_headers(token_a)
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/cancel", headers=_auth_headers(token_a))
+
+    retry_response = await client.post(
+        "/api/v1/collaborations", json=payload, headers=_auth_headers(token_a)
+    )
+    assert retry_response.status_code == 201
+
+
+async def test_only_initiator_can_update_pending_collaboration(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+
+    forbidden_response = await client.patch(
+        f"/api/v1/collaborations/{collaboration_id}",
+        json={"currency": "XOF"},
+        headers=_auth_headers(token_b),
+    )
+    assert forbidden_response.status_code == 403
+
+    update_response = await client.patch(
+        f"/api/v1/collaborations/{collaboration_id}",
+        json={"currency": "XOF", "initial_rate": "20", "note": "Ajusté"},
+        headers=_auth_headers(token_a),
+    )
+    assert update_response.status_code == 200
+    body = update_response.json()
+    assert body["currency"] == "XOF"
+    assert body["note"] == "Ajusté"
+
+    rate_history_response = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/rate-history", headers=_auth_headers(token_a)
+    )
+    proposed = [entry for entry in rate_history_response.json() if entry["status"] == "proposed"]
+    assert len(proposed) == 1
+    assert proposed[0]["new_rate"] == "20.000000"
+
+
+async def test_cannot_update_or_cancel_accepted_collaboration(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    cancel_response = await client.post(
+        f"/api/v1/collaborations/{collaboration_id}/cancel", headers=_auth_headers(token_a)
+    )
+    assert cancel_response.status_code == 409
+
+    update_response = await client.patch(
+        f"/api/v1/collaborations/{collaboration_id}", json={"note": "x"}, headers=_auth_headers(token_a)
+    )
+    assert update_response.status_code == 409
+
+
 async def test_collaborative_rate_visible_to_both_companies(client):
     (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
     create_response = await client.post(
@@ -249,6 +345,37 @@ async def test_deactivating_a_rate_leaves_currency_without_active_rate(client):
 
     rates = (await client.get("/api/v1/private-rates", headers=_auth_headers(token_a))).json()
     assert all(not r["is_active"] for r in rates)
+
+
+async def test_private_rate_target_currency_defaults_to_null_wildcard(client):
+    _, token_a = await _register_and_login_owner(client)
+
+    response = await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "rate": "15.5"},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    assert response.json()["target_currency"] is None
+
+
+async def test_private_rate_scoped_to_collaboration_forces_its_currency_as_target(client):
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    response = await client.post(
+        "/api/v1/private-rates",
+        json={"collaboration_id": collaboration_id, "currency": "XOF", "target_currency": "USD", "rate": "15.5"},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    assert response.json()["target_currency"] == "GNF"
 
 
 async def test_deactivating_the_only_rate_blocks_transfers_in_that_currency(client):

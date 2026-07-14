@@ -103,31 +103,37 @@ async def create_transfer(
     )
 
     # A transfer has no destination-country context to match against, so any active rate for
-    # this currency is a candidate regardless of the (optional, purely informational) country
-    # it was recorded with — only collaboration/operation-type specificity decide priority.
-    candidate_rates = await private_rate_repository.list_active_for_currency(
-        session, company_id, payload.currency
+    # this currency PAIR is a candidate regardless of the (optional, purely informational)
+    # country it was recorded with. `target_currency IS NULL` on a rate means "any destination"
+    # (a rate set up without picking a target currency, kept for backward compatibility) — an
+    # exact pair match is preferred over that wildcard whenever both exist.
+    candidate_rates = await private_rate_repository.list_active_for_pair(
+        session, company_id, payload.currency, collaboration.currency
     )
-    private_rate_row = next(
-        (
-            r
-            for r in candidate_rates
-            if r.collaboration_id == collaboration.id and r.operation_type == payload.send_mode
-        ),
-        None,
-    )
-    if private_rate_row is None:
-        private_rate_row = next(
-            (r for r in candidate_rates if r.collaboration_id == collaboration.id and r.operation_type is None),
-            None,
-        )
-    if private_rate_row is None:
-        private_rate_row = next(
-            (r for r in candidate_rates if r.collaboration_id is None and r.operation_type is None), None
-        )
+    private_rate_row = None
+    for want_collaboration_id, want_operation_type in (
+        (collaboration.id, payload.send_mode),
+        (collaboration.id, None),
+        (None, None),
+    ):
+        for want_target in (collaboration.currency, None):
+            private_rate_row = next(
+                (
+                    r
+                    for r in candidate_rates
+                    if r.collaboration_id == want_collaboration_id
+                    and r.operation_type == want_operation_type
+                    and r.target_currency == want_target
+                ),
+                None,
+            )
+            if private_rate_row is not None:
+                break
+        if private_rate_row is not None:
+            break
     if private_rate_row is None:
         raise ConflictError(
-            f"Aucun taux d'envoi privé actif pour la devise {payload.currency}. "
+            f"Aucun taux d'envoi privé actif pour la paire {payload.currency} → {collaboration.currency}. "
             "Configurez-le ou réactivez-le depuis la page Taux d'envoi avant de créer cet envoi."
         )
     private_rate_used = private_rate_row.rate

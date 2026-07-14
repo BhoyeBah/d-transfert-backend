@@ -14,6 +14,7 @@ from app.schemas.collaboration import (
     CollaborationRateHistoryResponse,
     CollaborationRequestCreate,
     CollaborationResponse,
+    CollaborationUpdateRequest,
     RateProposalCreateRequest,
     RateProposalDecisionRequest,
 )
@@ -141,6 +142,33 @@ async def reject_collaboration(
 ) -> CollaborationResponse:
     collaboration = await collaboration_service.reject_collaboration(
         db, company_id, current_user.id, collaboration_id, payload.reason
+    )
+    return await _to_response(db, company_id, collaboration, None)
+
+
+@router.patch("/{collaboration_id}", response_model=CollaborationResponse)
+async def update_collaboration(
+    collaboration_id: uuid.UUID,
+    payload: CollaborationUpdateRequest,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_manage),
+) -> CollaborationResponse:
+    collaboration, rate = await collaboration_service.update_collaboration(
+        db, company_id, current_user.id, collaboration_id, payload
+    )
+    return await _to_response(db, company_id, collaboration, rate)
+
+
+@router.post("/{collaboration_id}/cancel", response_model=CollaborationResponse)
+async def cancel_collaboration(
+    collaboration_id: uuid.UUID,
+    company_id: uuid.UUID = Depends(get_company_scope),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_manage),
+) -> CollaborationResponse:
+    collaboration = await collaboration_service.cancel_collaboration(
+        db, company_id, current_user.id, collaboration_id
     )
     return await _to_response(db, company_id, collaboration, None)
 

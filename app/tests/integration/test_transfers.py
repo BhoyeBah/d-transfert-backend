@@ -106,6 +106,56 @@ async def test_create_transfer_with_currency_conversion(client):
     assert body["converted_amount"] == "77500.00"
 
 
+async def test_private_rate_exact_pair_preferred_over_wildcard(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "rate": "15.5"},
+        headers=_auth_headers(token_a),
+    )
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "target_currency": "GNF", "rate": "16.2"},
+        headers=_auth_headers(token_a),
+    )
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "5000",
+            "currency": "XOF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    assert response.json()["private_rate_used"] == "16.200000"
+
+
+async def test_private_rate_pair_scoped_to_different_target_currency_not_used(client):
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "target_currency": "USD", "rate": "1500"},
+        headers=_auth_headers(token_a),
+    )
+
+    response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "5000",
+            "currency": "XOF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 409
+
+
 async def test_private_rate_with_country_set_is_still_found(client):
     # The "Pays" field on a private rate is informational only — a transfer has no destination
     # country to match against, so a rate saved with a country must still be usable, not silently

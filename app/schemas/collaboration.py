@@ -30,6 +30,23 @@ class CollaborationDecisionRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=255)
 
 
+class CollaborationUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    currency: str | None = Field(default=None, min_length=3, max_length=8)
+    initial_rate: Decimal | None = Field(default=None, gt=0)
+    note: str | None = Field(default=None, max_length=255)
+
+    @field_validator("currency")
+    @classmethod
+    def _validate_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not is_supported_currency(value):
+            raise ValueError(f"Devise non supportée : {value}")
+        return value.upper()
+
+
 class RateProposalCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

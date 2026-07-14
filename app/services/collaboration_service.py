@@ -13,7 +13,7 @@ from app.models.collaboration import (
 )
 from app.models.notification import NotificationType
 from app.repositories import collaboration_repository, collaborator_balance_repository, company_repository
-from app.schemas.collaboration import CollaborationRequestCreate
+from app.schemas.collaboration import CollaborationRequestCreate, CollaborationUpdateRequest
 from app.schemas.pagination import PageParams
 from app.services import audit_service, notification_service
 
@@ -147,6 +147,65 @@ async def reject_collaboration(
     )
     await session.commit()
     return collaboration
+
+
+async def cancel_collaboration(
+    session: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, collaboration_id: uuid.UUID
+) -> Collaboration:
+    collaboration = await _get_owned_collaboration(session, company_id, collaboration_id)
+
+    if collaboration.initiator_company_id != company_id:
+        raise PermissionDeniedError("Seul l'initiateur peut annuler sa demande de collaboration.")
+    if collaboration.status != CollaborationStatus.PENDING:
+        raise ConflictError("Cette collaboration n'est plus en attente.")
+
+    collaboration.status = CollaborationStatus.CANCELLED
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.cancel", "collaboration", collaboration.id
+    )
+    await notification_service.notify(
+        session,
+        collaboration.target_company_id,
+        NotificationType.COLLABORATION_REJECTED,
+        "La demande de collaboration a été annulée par l'entreprise initiatrice.",
+        link_type="collaboration",
+        link_id=collaboration.id,
+    )
+    await session.commit()
+    return collaboration
+
+
+async def update_collaboration(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
+    collaboration_id: uuid.UUID,
+    payload: CollaborationUpdateRequest,
+) -> tuple[Collaboration, CollaborationRateHistory | None]:
+    collaboration = await _get_owned_collaboration(session, company_id, collaboration_id)
+
+    if collaboration.initiator_company_id != company_id:
+        raise PermissionDeniedError("Seul l'initiateur peut modifier sa demande de collaboration.")
+    if collaboration.status != CollaborationStatus.PENDING:
+        raise ConflictError("Seule une demande en attente peut être modifiée.")
+
+    fields = payload.model_fields_set
+    if "currency" in fields and payload.currency is not None:
+        collaboration.currency = payload.currency
+    if "note" in fields:
+        collaboration.note = payload.note
+
+    proposal = await collaboration_repository.get_pending_proposal(session, collaboration_id)
+    if "initial_rate" in fields and payload.initial_rate is not None and proposal is not None:
+        proposal.new_rate = payload.initial_rate
+        if "note" in fields:
+            proposal.note = payload.note
+
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "collaboration.update", "collaboration", collaboration.id
+    )
+    await session.commit()
+    return collaboration, proposal
 
 
 async def propose_rate_change(

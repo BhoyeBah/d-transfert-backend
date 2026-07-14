@@ -16,6 +16,7 @@ class CollaborationStatus(StrEnum):
     REJECTED = "rejected"
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
+    CANCELLED = "cancelled"
 
 
 class RateProposalStatus(StrEnum):
