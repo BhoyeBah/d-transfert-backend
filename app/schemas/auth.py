@@ -93,9 +93,3 @@ class ResetPasswordRequest(BaseModel):
             raise ValueError("Les mots de passe ne correspondent pas.")
         return value
 
-
-class LogoutRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    refresh_token: str
-

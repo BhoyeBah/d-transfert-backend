@@ -485,10 +485,24 @@ async def list_transfers(session: AsyncSession, company_id: uuid.UUID) -> list[T
 
 
 async def list_transfers_page(
-    session: AsyncSession, company_id: uuid.UUID, params: PageParams
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    params: PageParams,
+    status: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> tuple[list[Transfer], int]:
     return await transfer_repository.list_for_company_page(
-        session, company_id, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
+        session,
+        company_id,
+        params.page,
+        params.page_size,
+        params.search,
+        params.sort_by,
+        params.sort_dir,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
     )
 
 
