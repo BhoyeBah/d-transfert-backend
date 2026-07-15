@@ -12,7 +12,7 @@ async def main() -> None:
             # Vérifier si l'utilisateur existe déjà
             result = await session.execute(
                 text("SELECT id FROM users WHERE matricule = :matricule"),
-                {"matricule": "admin@dtransfert.com"}
+                {"matricule": "ADMIN"}
             )
             existing = result.fetchone()
             if existing:
@@ -20,7 +20,7 @@ async def main() -> None:
                 await session.execute(
                     text("UPDATE users SET password_hash = :password_hash WHERE matricule = :matricule"),
                     {
-                        "matricule": "admin@dtransfert.com",
+                        "matricule": "ADMIN",
                         "password_hash": hash_password("passer123")
                     }
                 )
@@ -45,12 +45,13 @@ async def main() -> None:
                 """),
                 {
                     "id": user_id,
-                    "matricule": "admin@dtransfert.com",
+                    "matricule": "ADMIN",
                     "password_hash": pwd_hash
                 }
             )
+
             await session.commit()
-            print("Administrateur de la plateforme créé avec succès (admin@dtransfert.com).")
+            print("Administrateur de la plateforme créé avec succès (ADMIN).")
     except Exception as e:
         print(f"Erreur lors de la création de l'administrateur: {e}", file=sys.stderr)
         sys.exit(1)
