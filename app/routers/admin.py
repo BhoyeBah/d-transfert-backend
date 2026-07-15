@@ -20,7 +20,13 @@ from app.schemas.admin import (
     SystemLogResponse,
 )
 from app.schemas.audit_log import AuditLogResponse
-from app.schemas.company import AdminCompanyStatusUpdateRequest, AdminCompanyUpdateRequest, CompanyMeResponse
+from app.schemas.auth import RegisterResponse
+from app.schemas.company import (
+    AdminCompanyCreateRequest,
+    AdminCompanyStatusUpdateRequest,
+    AdminCompanyUpdateRequest,
+    CompanyMeResponse,
+)
 from app.schemas.pagination import Page, PageParams, page_params
 from app.services import admin_service, audit_service
 
@@ -59,6 +65,15 @@ async def list_companies_page(
     companies, total = await admin_service.list_companies_page(db, params)
     items = [CompanyMeResponse.model_validate(company, from_attributes=True) for company in companies]
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
+
+
+@router.post("/companies", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+async def create_company(
+    payload: AdminCompanyCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> RegisterResponse:
+    return await admin_service.create_company(db, current_user.id, payload)
 
 
 @router.get("/companies/{company_id}", response_model=AdminCompanyDetailResponse)

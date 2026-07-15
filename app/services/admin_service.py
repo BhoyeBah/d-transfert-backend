@@ -38,9 +38,11 @@ from app.schemas.admin import (
     SubscriptionUpdateRequest,
     SystemLogResponse,
 )
-from app.schemas.company import AdminCompanyUpdateRequest
+from app.schemas.auth import RegisterResponse
+from app.schemas.company import AdminCompanyCreateRequest, AdminCompanyUpdateRequest
 from app.schemas.pagination import PageParams
 from app.services import audit_service
+from app.services.company_service import create_company_with_owner
 from app.services.user_management_service import count_user_dependency_usage, has_user_dependencies
 from app.utils.reference import generate_platform_admin_matricule
 
@@ -78,6 +80,27 @@ async def list_companies_page(session: AsyncSession, params: PageParams) -> tupl
     return await company_repository.list_all_page(
         session, params.page, params.page_size, params.search, params.sort_by, params.sort_dir
     )
+
+
+async def create_company(
+    session: AsyncSession, acted_by_user_id: uuid.UUID, payload: AdminCompanyCreateRequest
+) -> RegisterResponse:
+    company, owner = await create_company_with_owner(
+        session,
+        company_name=payload.company_name,
+        company_phone=payload.company_phone,
+        address=payload.address,
+        default_currency=payload.default_currency,
+        owner_full_name=payload.owner_full_name,
+        password=payload.password,
+        status=payload.status,
+    )
+    await audit_service.log_action(
+        session, company.id, acted_by_user_id, "admin.company_create", "company", company.id,
+        note=f"status={payload.status.value}",
+    )
+    await session.commit()
+    return RegisterResponse(company_id=company.id, registration_code=company.registration_code, owner_user_id=owner.id)
 
 
 async def set_company_status(

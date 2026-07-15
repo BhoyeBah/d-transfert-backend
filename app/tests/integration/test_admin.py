@@ -83,6 +83,35 @@ async def test_super_admin_can_list_and_suspend_companies(client, db_session):
     assert login_after_suspend.status_code == 401
 
 
+async def test_super_admin_can_create_company(client, db_session):
+    admin_token = await _create_super_admin_token(db_session)
+    payload = {
+        "company_name": "Nouvelle Entreprise",
+        "company_phone": "+224901000099",
+        "address": "Conakry",
+        "default_currency": "GNF",
+        "owner_full_name": "Owner Nouvelle",
+        "password": "SuperSecret123!",
+        "password_confirmation": "SuperSecret123!",
+    }
+
+    response = await client.post(
+        "/api/v1/admin/companies", json=payload, headers=_auth_headers(admin_token)
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["registration_code"].startswith("DT-")
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    assert any(company["phone"] == payload["company_phone"] for company in companies)
+
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": body["registration_code"], "password": payload["password"]},
+    )
+    assert login_response.status_code == 200
+
+
 async def test_super_admin_can_paginate_search_sort_companies(client, db_session):
     admin_token = await _create_super_admin_token(db_session)
     await _register_and_login_owner(client, company_name="Zeta Corp", company_phone="+224900000201")
