@@ -65,7 +65,7 @@ lui-même** (§37.2) — ce ne sont pas des bugs, mais des reports assumés.
 | `docker-compose.prod.yml` | ✅ **Ajouté** | Stack complète : `postgres` (volume nommé, healthcheck), `backend` (volume nommé pour `uploads/`, variables requises via `${VAR:?message}` — refuse de démarrer sans secrets explicitement fournis), `frontend`, `reverse-proxy` (Caddy — HTTPS/Let's Encrypt automatique via `DOMAIN`, en-têtes transmis). Validé avec `docker compose -f docker-compose.prod.yml config` (voir `.env.prod.example` pour les variables à fournir). |
 | Persistance des preuves (`uploads/`) | ✅ **Corrigé** | Volume Docker nommé (`dtransfert_uploads`) déclaré dans `docker-compose.prod.yml` — un redéploiement ne perd plus les fichiers. Le stockage reste local au disque du serveur (choix assumé par le cahier des charges §36.2, migration S3 recommandée plus tard si le volume le justifie, cf. section 8). |
 | CI/CD | ✅ **Ajouté** | `.github/workflows/ci.yml` : job backend (Postgres de service, `alembic upgrade head` + `alembic check` + `alembic downgrade base` pour détecter toute dérive modèles/migrations, puis suite de tests complète) ; job frontend (`npm run lint`, `tsc --noEmit`, `next build`). Se déclenche sur push vers `main` et sur toute pull request. |
-| Sauvegardes base de données | ❌ Toujours non traité | Reste hors du périmètre de ce qui est faisable en code applicatif — dépend du choix d'hébergement (snapshot managé chez un cloud provider, ou `pg_dump` planifié si auto-hébergé). Recommandation inchangée : mettre en place et **tester une restauration** avant tout premier vrai lancement. |
+| Sauvegardes base de données | ✅ Partiel | Des scripts d'exploitation `scripts/db_backup.sh` et `scripts/db_restore.sh` sont fournis pour faire des dumps `pg_dump -Fc` compressés et restaurer via `pg_restore --clean --if-exists`. Il reste à **planifier l'exécution automatique** (cron/systemd timer/outil d'hébergement) et à tester une restauration sur l'infra cible avant le premier vrai lancement. |
 | Variables d'environnement | ✅ Bien documentées, désormais validées | `.env.example` (dev) et `.env.prod.example` (prod, nouveau) complets ; `JWT_SECRET_KEY` par défaut désormais bloqué en production (voir section 2). |
 
 ---
@@ -142,8 +142,8 @@ de rétention), pas une fonctionnalité applicative.
   impact mesurable).
 - Si le déploiement passe un jour à plusieurs instances backend : migrer le rate
   limiting et un éventuel cache vers Redis (stockage partagé).
-- Mettre en place la sauvegarde Postgres (point 4 ci-dessus) avec une restauration
-  déjà testée au moins une fois.
+- Planifier la sauvegarde Postgres automatique via `cron` ou `systemd timer` sur
+  l'hôte Hetzner, puis tester une restauration complète au moins une fois.
 
 ## 9. Ce qui n'a pas besoin d'être traité avant la mise en ligne
 

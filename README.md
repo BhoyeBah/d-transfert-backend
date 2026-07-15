@@ -173,3 +173,33 @@ explicitement définis (jamais de valeur par défaut en clair pour ces secrets).
 `PRODUCTION_READINESS.md` pour le diagnostic complet de préparation à la production
 (sécurité, infrastructure, observabilité) et ce qui reste à traiter au niveau
 infrastructure (sauvegardes Postgres, alerting externe).
+
+## Sauvegarde et restauration
+
+Deux scripts d'exploitation sont fournis pour les sauvegardes PostgreSQL sur un
+hébergement comme Hetzner :
+
+```bash
+# Créer une sauvegarde compressée dans ./backups
+bash scripts/db_backup.sh
+
+# Restaurer une sauvegarde existante
+RESTORE_FORCE=1 bash scripts/db_restore.sh ./backups/dtransfert_20260715_153000.dump.gz
+```
+
+Par défaut, le script de backup :
+
+* lit `.env.prod`
+* prend un dump `pg_dump -Fc`
+* compresse le résultat en `.dump.gz`
+* conserve les `14` sauvegardes les plus récentes dans `backups/`
+
+La restauration utilise `pg_restore --clean --if-exists` et doit être lancée pendant
+une fenêtre de maintenance, avec les écritures applicatives arrêtées.
+
+Pour l'automatiser sur Hetzner, ajoute simplement un `cron` ou un `systemd timer` qui
+exécute `bash scripts/db_backup.sh` chaque nuit, par exemple :
+
+```cron
+0 2 * * * cd /opt/d-transfert && BACKUP_DIR=/var/backups/dtransfert bash scripts/db_backup.sh >> /var/log/dtransfert-backup.log 2>&1
+```
