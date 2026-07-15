@@ -2,11 +2,16 @@ import uuid
 from collections import defaultdict
 from decimal import Decimal
 
+from sqlalchemy import delete, or_, select, text as _text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import hash_password
+from app.models.collaboration import Collaboration
 from app.models.company import Company, CompanyStatus
+from app.models.entry_allocation import EntryAllocation
+from app.models.payment import Payment
+from app.models.transfer import Transfer
 from app.models.subscription import Subscription
 from app.models.user import User
 from app.repositories import (
@@ -405,13 +410,14 @@ async def delete_company(
          notifications, audit_logs, users  (CASCADE ou RESTRICT → company)
       9. company elle-même
     """
-    from sqlalchemy import text as _text
-
     company = await company_repository.get_by_id(session, company_id)
     if company is None:
         raise NotFoundError("Entreprise introuvable.")
 
     cid = str(company_id)
+    collaboration_ids = select(Collaboration.id).where(
+        or_(Collaboration.initiator_company_id == company_id, Collaboration.target_company_id == company_id)
+    )
 
     # Étape 1 – mouvements de wallet (RESTRICT sur wallets.id et users.id)
     await session.execute(_text(
@@ -451,22 +457,39 @@ async def delete_company(
         "DELETE FROM proofs WHERE company_id = :cid"
     ), {"cid": cid})
 
-    # Étape 7 – transferts et paiements avec leurs historiques de statut
-    # (RESTRICT sur collaborations.id, wallets.id, users.id)
-    await session.execute(_text(
-        "DELETE FROM transfer_status_history WHERE company_id = :cid"
-    ), {"cid": cid})
-    await session.execute(_text(
-        "DELETE FROM transfers WHERE company_id = :cid"
-    ), {"cid": cid})
-    await session.execute(_text(
-        "DELETE FROM payment_status_history WHERE company_id = :cid"
-    ), {"cid": cid})
-    await session.execute(_text(
-        "DELETE FROM payments WHERE company_id = :cid"
-    ), {"cid": cid})
+    # Étape 7 – transferts et paiements liés à la compagnie, y compris ceux partagés via une
+    # collaboration dont l'autre extrémité appartenait à une autre entreprise.
+    # On supprime aussi les allocations d'entrée pointant vers ces opérations pour éviter les
+    # références orphelines côté logique applicative.
+    await session.execute(
+        delete(EntryAllocation).where(
+            EntryAllocation.target_type == "transfer",
+            EntryAllocation.target_id.in_(select(Transfer.id).where(
+                or_(Transfer.company_id == company_id, Transfer.collaboration_id.in_(collaboration_ids))
+            )),
+        )
+    )
+    await session.execute(
+        delete(EntryAllocation).where(
+            EntryAllocation.target_type == "payment",
+            EntryAllocation.target_id.in_(select(Payment.id).where(
+                or_(Payment.company_id == company_id, Payment.collaboration_id.in_(collaboration_ids))
+            )),
+        )
+    )
 
-    # Étape 8 – reste des tables enfants avec CASCADE ou RESTRICT sur company_id/users
+    # Étape 8 – transferts et paiements avec leurs historiques de statut
+    # (RESTRICT sur collaborations.id, wallets.id, users.id)
+    await session.execute(_text("DELETE FROM transfer_status_history WHERE company_id = :cid"), {"cid": cid})
+    await session.execute(
+        delete(Transfer).where(or_(Transfer.company_id == company_id, Transfer.collaboration_id.in_(collaboration_ids)))
+    )
+    await session.execute(_text("DELETE FROM payment_status_history WHERE company_id = :cid"), {"cid": cid})
+    await session.execute(
+        delete(Payment).where(or_(Payment.company_id == company_id, Payment.collaboration_id.in_(collaboration_ids)))
+    )
+
+    # Étape 9 – reste des tables enfants avec CASCADE ou RESTRICT sur company_id/users
     # Entrées, opérations nationales, wallets, clients, fournisseurs
     await session.execute(_text("DELETE FROM entries WHERE company_id = :cid"), {"cid": cid})
     await session.execute(_text("DELETE FROM national_operations WHERE company_id = :cid"), {"cid": cid})
@@ -474,10 +497,12 @@ async def delete_company(
     await session.execute(_text("DELETE FROM clients WHERE company_id = :cid"), {"cid": cid})
     await session.execute(_text("DELETE FROM suppliers WHERE company_id = :cid"), {"cid": cid})
 
-    # Collaborations (CASCADE sur collaborator_balance_movements, rate_history, transfers déjà supprimés)
-    await session.execute(_text(
-        "DELETE FROM collaborations WHERE initiator_company_id = :cid OR target_company_id = :cid"
-    ), {"cid": cid})
+    # Collaborations (CASCADE sur collaborator_balance_movements, rate_history)
+    await session.execute(
+        delete(Collaboration).where(
+            or_(Collaboration.initiator_company_id == company_id, Collaboration.target_company_id == company_id)
+        )
+    )
 
     # Taux privés, abonnement, notifications, logs
     await session.execute(_text("DELETE FROM private_sending_rates WHERE company_id = :cid"), {"cid": cid})
@@ -485,10 +510,9 @@ async def delete_company(
     await session.execute(_text("DELETE FROM notifications WHERE company_id = :cid"), {"cid": cid})
     await session.execute(_text("DELETE FROM audit_logs WHERE company_id = :cid"), {"cid": cid})
 
-    # Utilisateurs (CASCADE sur password_reset_otps)
+    # Utilisateurs (CASCADE sur password_reset_otps et user_permission_overrides)
     await session.execute(_text("DELETE FROM users WHERE company_id = :cid"), {"cid": cid})
 
-    # Étape 9 – entreprise elle-même
     await session.delete(company)
 
     await session.commit()

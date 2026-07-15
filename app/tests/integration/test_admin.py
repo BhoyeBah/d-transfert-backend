@@ -472,10 +472,63 @@ async def test_super_admin_can_delete_company(client, db_session):
     assert forbidden.status_code == 403
 
 
+async def test_super_admin_can_delete_company_with_shared_collaboration(client, db_session):
+    _, token_a = await _register_and_login_owner(
+        client, company_name="Entreprise Alpha", company_phone="+224901099997"
+    )
+    _, token_b = await _register_and_login_owner(
+        client, company_name="Entreprise Beta", company_phone="+224901099996"
+    )
+    admin_token = await _create_super_admin_token(db_session)
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    company_b = next(company for company in companies if company["phone"] == "+224901099996")
+
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": company_b["registration_code"], "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    assert create_response.status_code == 201
+    collaboration_id = create_response.json()["id"]
+
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "GNF", "rate": "15"},
+        headers=_auth_headers(token_a),
+    )
+    transfer_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "1000",
+            "currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert transfer_response.status_code == 201
+
+    delete_response = await client.delete(
+        f"/api/v1/admin/companies/{company_b['id']}", headers=_auth_headers(admin_token)
+    )
+    assert delete_response.status_code == 200
+
+    remaining_companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    assert len(remaining_companies) == 1
+
+    alpha_detail = await client.get(
+        f"/api/v1/admin/companies/{remaining_companies[0]['id']}", headers=_auth_headers(admin_token)
+    )
+    assert alpha_detail.status_code == 200
+    assert alpha_detail.json()["transfers_count"] == 0
+
+
 async def test_super_admin_delete_company_not_found(client, db_session):
     admin_token = await _create_super_admin_token(db_session)
     response = await client.delete(
         f"/api/v1/admin/companies/{uuid.uuid4()}", headers=_auth_headers(admin_token)
     )
     assert response.status_code == 404
-
