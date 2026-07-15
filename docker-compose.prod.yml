@@ -32,12 +32,16 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
       UPLOAD_DIR: /app/uploads
+      BACKUP_DIR: /app/backups
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
     volumes:
       # Sans ce volume nommé, chaque redéploiement du conteneur backend efface les
       # preuves déjà uploadées (stockage local — cf. cahier des charges §36.2, qui
       # anticipe explicitement une migration vers un stockage S3-compatible plus tard).
       - dtransfert_uploads:/app/uploads
+      # Les sauvegardes doivent rester accessibles au backend et aux scripts d'exploitation
+      # depuis le même répertoire persistant sur l'hôte.
+      - ./backups:/app/backups
 
   frontend:
     build:

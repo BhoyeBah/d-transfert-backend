@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -10,7 +10,7 @@ from app.core.exceptions import PermissionDeniedError, UnauthorizedError
 from app.core.security import TokenType, decode_token
 from app.models.company import CompanyStatus
 from app.core.permission_codes import PermissionCode
-from app.repositories import company_repository, revoked_token_repository, user_repository
+from app.repositories import company_repository, platform_setting_repository, revoked_token_repository, user_repository
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,7 @@ class CurrentUser:
 
 
 async def get_current_user(
+    request: Request,
     authorization: str | None = Header(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
@@ -51,6 +52,15 @@ async def get_current_user(
         company = await company_repository.get_by_id(db, user.company_id)
         if company is None or company.status == CompanyStatus.SUSPENDED:
             raise UnauthorizedError("Entreprise suspendue.")
+
+    platform_setting = await platform_setting_repository.get(db)
+    if (
+        platform_setting is not None
+        and platform_setting.maintenance_mode
+        and not user.is_super_admin
+        and not request.url.path.startswith("/api/v1/admin/")
+    ):
+        raise UnauthorizedError("La plateforme est en mode maintenance.")
 
     if user.is_owner or user.is_super_admin:
         permissions: frozenset[str] = frozenset(code.value for code in PermissionCode)

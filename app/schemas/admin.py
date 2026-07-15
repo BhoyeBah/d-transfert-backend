@@ -99,6 +99,21 @@ class PlatformSettingsUpdateRequest(BaseModel):
     require_company_approval: bool | None = None
 
 
+class AdminBackupResponse(BaseModel):
+    filename: str
+    created_at: datetime
+    size_bytes: int
+
+
+class AdminBackupActionResponse(BaseModel):
+    detail: str
+    backup: AdminBackupResponse
+
+
+class AdminBackupRestoreRequest(BaseModel):
+    filename: str = Field(pattern=r"^dtransfert_\d{8}_\d{6}\.dump\.gz$")
+
+
 class SubscriptionResponse(BaseModel):
     company_id: uuid.UUID
     plan: SubscriptionPlan

@@ -176,8 +176,8 @@ infrastructure (sauvegardes Postgres, alerting externe).
 
 ## Sauvegarde et restauration
 
-Deux scripts d'exploitation sont fournis pour les sauvegardes PostgreSQL sur un
-hébergement comme Hetzner :
+Deux scripts d'exploitation et une interface admin sont fournis pour les sauvegardes
+PostgreSQL sur un hébergement comme Hetzner :
 
 ```bash
 # Créer une sauvegarde compressée dans ./backups
@@ -186,6 +186,12 @@ bash scripts/db_backup.sh
 # Restaurer une sauvegarde existante
 RESTORE_FORCE=1 bash scripts/db_restore.sh ./backups/dtransfert_20260715_153000.dump.gz
 ```
+
+Dans l'interface d'administration, va dans **Paramètres plateforme** :
+
+* bouton **Créer une sauvegarde**
+* liste des backups disponibles
+* bouton **Restaurer** avec confirmation
 
 Par défaut, le script de backup :
 

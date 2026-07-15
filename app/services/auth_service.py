@@ -35,6 +35,8 @@ OTP_EXPIRE_MINUTES = 10
 OTP_MAX_ATTEMPTS = 5
 async def register(db: AsyncSession, payload: RegisterRequest) -> RegisterResponse:
     platform_setting = await platform_setting_repository.get(db)
+    if platform_setting is not None and platform_setting.maintenance_mode:
+        raise UnauthorizedError("La plateforme est en mode maintenance.")
     require_approval = platform_setting is not None and platform_setting.require_company_approval
     company, owner = await create_company_with_owner(
         db,
@@ -80,6 +82,9 @@ async def _ensure_company_active(db: AsyncSession, user: User) -> None:
 
 async def login(db: AsyncSession, matricule: str, password: str) -> tuple[str, str]:
     user = await _find_login_user(db, matricule)
+    platform_setting = await platform_setting_repository.get(db)
+    if platform_setting is not None and platform_setting.maintenance_mode and not user.is_super_admin:
+        raise UnauthorizedError("La plateforme est en mode maintenance.")
 
     if not user.is_super_admin:
         await _ensure_company_active(db, user)

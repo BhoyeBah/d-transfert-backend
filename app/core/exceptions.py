@@ -46,6 +46,11 @@ class InsufficientBalanceError(AppError):
     default_message = "Solde insuffisant."
 
 
+class BackupError(AppError):
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    default_message = "Impossible d'exécuter la sauvegarde ou la restauration."
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
