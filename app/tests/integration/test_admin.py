@@ -353,6 +353,29 @@ async def test_super_admin_can_list_and_create_platform_admins(client, db_sessio
     assert forbidden_create.status_code == 403
 
 
+async def test_super_admin_can_update_and_delete_platform_admin(client, db_session):
+    admin_id, admin_token = await _create_super_admin(db_session)
+    _, _ = await _create_super_admin(db_session)
+
+    update_response = await client.patch(
+        f"/api/v1/admin/platform-admins/{admin_id}",
+        json={"full_name": "Super Admin Modifié", "phone": "+000999999999"},
+        headers=_auth_headers(admin_token),
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["full_name"] == "Super Admin Modifié"
+    assert update_response.json()["phone"] == "+000999999999"
+
+    delete_response = await client.delete(
+        f"/api/v1/admin/platform-admins/{admin_id}",
+        headers=_auth_headers(admin_token),
+    )
+    assert delete_response.status_code == 204
+
+    list_after = await client.get("/api/v1/admin/platform-admins", headers=_auth_headers(admin_token))
+    assert len(list_after.json()) == 1
+
+
 async def test_super_admin_cannot_suspend_own_account(client, db_session):
     admin_id, admin_token = await _create_super_admin(db_session)
 

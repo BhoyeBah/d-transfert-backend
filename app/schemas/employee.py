@@ -28,6 +28,14 @@ class EmployeeStatusUpdateRequest(BaseModel):
     is_active: bool
 
 
+class EmployeeUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    phone: str | None = Field(default=None, min_length=6, max_length=32)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
 class EmployeeResponse(BaseModel):
     id: uuid.UUID
     matricule: str

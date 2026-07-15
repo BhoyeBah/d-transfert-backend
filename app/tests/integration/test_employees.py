@@ -139,6 +139,104 @@ async def test_owner_can_deactivate_employee_and_login_fails(client):
     assert login_response.status_code == 401
 
 
+async def test_owner_can_update_employee_identity_and_password(client):
+    _, owner_token = await _register_and_login_owner(client)
+    create_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé À Modifier",
+            "phone": "+224611111115",
+            "password": "EmployeePass123!",
+            "permissions": ["wallet.manage"],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    employee = create_response.json()
+
+    update_response = await client.patch(
+        f"/api/v1/employees/{employee['id']}",
+        json={"full_name": "Employé Modifié", "phone": "+224611111116", "password": "NewPass123!"},
+        headers=_auth_headers(owner_token),
+    )
+    assert update_response.status_code == 200
+    body = update_response.json()
+    assert body["full_name"] == "Employé Modifié"
+    assert body["phone"] == "+224611111116"
+
+    old_login = await client.post(
+        "/api/v1/auth/login", json={"matricule": employee["matricule"], "password": "EmployeePass123!"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/api/v1/auth/login", json={"matricule": employee["matricule"], "password": "NewPass123!"}
+    )
+    assert new_login.status_code == 200
+
+
+async def test_owner_can_delete_employee_without_history(client):
+    _, owner_token = await _register_and_login_owner(client)
+    create_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé Supprimé",
+            "phone": "+224611111117",
+            "password": "EmployeePass123!",
+            "permissions": [],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    employee = create_response.json()
+
+    delete_response = await client.delete(
+        f"/api/v1/employees/{employee['id']}",
+        headers=_auth_headers(owner_token),
+    )
+    assert delete_response.status_code == 204
+
+    login_response = await client.post(
+        "/api/v1/auth/login", json={"matricule": employee["matricule"], "password": "EmployeePass123!"}
+    )
+    assert login_response.status_code == 401
+
+
+async def test_owner_cannot_delete_employee_with_history(client):
+    _, owner_token = await _register_and_login_owner(client)
+    create_response = await client.post(
+        "/api/v1/employees",
+        json={
+            "full_name": "Employé Actif",
+            "phone": "+224611111118",
+            "password": "EmployeePass123!",
+            "permissions": ["wallet.manage"],
+        },
+        headers=_auth_headers(owner_token),
+    )
+    employee = create_response.json()
+
+    employee_login = await client.post(
+        "/api/v1/auth/login", json={"matricule": employee["matricule"], "password": "EmployeePass123!"}
+    )
+    employee_token = employee_login.json()["access_token"]
+    await client.post(
+        "/api/v1/wallets",
+        json={
+            "name": "Wallet Emp",
+            "code": "W-EMP",
+            "type": "cash",
+            "currency": "GNF",
+            "initial_balance": "10000",
+        },
+        headers=_auth_headers(employee_token),
+    )
+
+    delete_response = await client.delete(
+        f"/api/v1/employees/{employee['id']}",
+        headers=_auth_headers(owner_token),
+    )
+    assert delete_response.status_code == 409
+
+
 async def test_employees_page_search_sort_pagination(client):
     _, owner_token = await _register_and_login_owner(client)
     for phone, name in [

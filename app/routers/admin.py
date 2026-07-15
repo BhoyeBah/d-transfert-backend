@@ -11,6 +11,7 @@ from app.schemas.admin import (
     AdminPlatformStatsResponse,
     AdminUserResponse,
     AdminUserStatusUpdateRequest,
+    AdminUserUpdateRequest,
     PlatformAdminCreateRequest,
     PlatformSettingsResponse,
     PlatformSettingsUpdateRequest,
@@ -123,6 +124,25 @@ async def update_user_status(
     current_user: CurrentUser = Depends(_require_super_admin),
 ) -> AdminUserResponse:
     return await admin_service.set_user_status(db, current_user.id, user_id, payload.is_active)
+
+
+@router.patch("/platform-admins/{admin_id}", response_model=AdminUserResponse)
+async def update_platform_admin(
+    admin_id: uuid.UUID,
+    payload: AdminUserUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> AdminUserResponse:
+    return await admin_service.update_platform_admin(db, current_user.id, admin_id, payload)
+
+
+@router.delete("/platform-admins/{admin_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_platform_admin(
+    admin_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> None:
+    await admin_service.delete_platform_admin(db, current_user.id, admin_id)
 
 
 @router.get("/platform-admins", response_model=list[AdminUserResponse])

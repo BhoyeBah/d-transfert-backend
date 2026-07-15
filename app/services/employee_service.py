@@ -11,6 +11,7 @@ from app.repositories import role_repository, user_repository
 from app.schemas.employee import EmployeeCreateRequest, EmployeeResponse
 from app.schemas.pagination import PageParams
 from app.services import audit_service
+from app.services.user_management_service import count_user_dependency_usage, has_user_dependencies
 from app.utils.reference import generate_employee_matricule
 
 
@@ -143,6 +144,58 @@ async def set_active_status(
     return await _to_response(db, user)
 
 
+async def update_employee(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    acted_by_user_id: uuid.UUID,
+    employee_id: uuid.UUID,
+    full_name: str | None = None,
+    phone: str | None = None,
+    password: str | None = None,
+) -> EmployeeResponse:
+    user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
+    if user is None:
+        raise NotFoundError("Employé introuvable.")
+
+    if phone is not None and phone != user.phone:
+        existing = await user_repository.get_by_company_and_phone(db, company_id, phone)
+        if existing is not None and existing.id != user.id:
+            raise ConflictError("Ce numéro de téléphone est déjà utilisé dans cette entreprise.")
+        user.phone = phone
+    if full_name is not None:
+        user.full_name = full_name
+    if password is not None:
+        user.password_hash = hash_password(password)
+
+    await audit_service.log_action(
+        db, company_id, acted_by_user_id, "employee.update", "user", user.id,
+        note=f"full_name={full_name!r} phone={phone!r} password={'yes' if password else 'no'}",
+    )
+    await db.commit()
+    return await _to_response(db, user)
+
+
+async def delete_employee(
+    db: AsyncSession, company_id: uuid.UUID, acted_by_user_id: uuid.UUID, employee_id: uuid.UUID
+) -> None:
+    user = await user_repository.get_by_company_and_id(db, company_id, employee_id)
+    if user is None:
+        raise NotFoundError("Employé introuvable.")
+
+    counts = await count_user_dependency_usage(db, user.id)
+    if has_user_dependencies(counts):
+        raise ConflictError(
+            "Cet utilisateur ne peut pas être supprimé car il est référencé par des données métier. "
+            "Désactivez le compte à la place."
+        )
+
+    await audit_service.log_action(
+        db, company_id, acted_by_user_id, "employee.delete", "user", user.id
+    )
+    await db.delete(user)
+    await db.commit()
+
+
 async def get_employee_activity(
     db: AsyncSession, company_id: uuid.UUID, employee_id: uuid.UUID
 ) -> list:
@@ -150,4 +203,3 @@ async def get_employee_activity(
     if user is None:
         raise NotFoundError("Employé introuvable.")
     return await audit_service.list_for_employee(db, company_id, employee_id)
-

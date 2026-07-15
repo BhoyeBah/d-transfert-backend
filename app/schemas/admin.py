@@ -25,6 +25,14 @@ class AdminUserStatusUpdateRequest(BaseModel):
     is_active: bool
 
 
+class AdminUserUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    phone: str | None = Field(default=None, min_length=6, max_length=32)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
 class PlatformAdminCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -30,6 +30,7 @@ from app.schemas.admin import (
     AdminCompanyDetailResponse,
     AdminPlatformStatsResponse,
     AdminUserResponse,
+    AdminUserUpdateRequest,
     PlatformAdminCreateRequest,
     PlatformSettingsResponse,
     PlatformSettingsUpdateRequest,
@@ -40,6 +41,7 @@ from app.schemas.admin import (
 from app.schemas.company import AdminCompanyUpdateRequest
 from app.schemas.pagination import PageParams
 from app.services import audit_service
+from app.services.user_management_service import count_user_dependency_usage, has_user_dependencies
 from app.utils.reference import generate_platform_admin_matricule
 
 
@@ -234,6 +236,52 @@ async def create_platform_admin(
     )
     await session.commit()
     return _user_to_response(admin)
+
+
+async def update_platform_admin(
+    session: AsyncSession, acted_by_user_id: uuid.UUID, admin_id: uuid.UUID, payload: AdminUserUpdateRequest
+) -> AdminUserResponse:
+    admin = await user_repository.get_by_id(session, admin_id)
+    if admin is None or not admin.is_super_admin:
+        raise NotFoundError("Compte Super Admin introuvable.")
+
+    if payload.phone is not None and payload.phone != admin.phone:
+        existing = await user_repository.get_super_admin_by_phone(session, payload.phone)
+        if existing is not None and existing.id != admin.id:
+            raise ConflictError("Ce numéro de téléphone est déjà utilisé par un compte Super Admin.")
+        admin.phone = payload.phone
+    if payload.full_name is not None:
+        admin.full_name = payload.full_name
+    if payload.password is not None:
+        admin.password_hash = hash_password(payload.password)
+
+    await audit_service.log_action(
+        session, None, acted_by_user_id, "admin.platform_admin_update", "user", admin.id
+    )
+    await session.commit()
+    return _user_to_response(admin)
+
+
+async def delete_platform_admin(session: AsyncSession, acted_by_user_id: uuid.UUID, admin_id: uuid.UUID) -> None:
+    admin = await user_repository.get_by_id(session, admin_id)
+    if admin is None or not admin.is_super_admin:
+        raise NotFoundError("Compte Super Admin introuvable.")
+
+    if admin.is_active and await user_repository.count_active_super_admins(session) <= 1:
+        raise ConflictError("Impossible de supprimer le dernier compte Super Admin actif.")
+
+    counts = await count_user_dependency_usage(session, admin.id)
+    if has_user_dependencies(counts):
+        raise ConflictError(
+            "Ce compte ne peut pas être supprimé car il est référencé par des données métier. "
+            "Désactivez le compte à la place."
+        )
+
+    await audit_service.log_action(
+        session, None, acted_by_user_id, "admin.platform_admin_delete", "user", admin.id
+    )
+    await session.delete(admin)
+    await session.commit()
 
 
 async def get_platform_stats(session: AsyncSession) -> AdminPlatformStatsResponse:
