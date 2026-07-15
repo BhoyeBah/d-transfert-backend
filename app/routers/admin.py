@@ -91,6 +91,21 @@ async def update_company_status(
     return CompanyMeResponse.model_validate(company, from_attributes=True)
 
 
+@router.delete(
+    "/companies/{company_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Supprimer une entreprise et toutes ses données",
+)
+async def delete_company(
+    company_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> dict:
+    await admin_service.delete_company(db, current_user.id, company_id)
+    return {"detail": "Entreprise et toutes ses données supprimées avec succès.", "company_id": str(company_id)}
+
+
+
 @router.get("/companies/{company_id}/users", response_model=list[AdminUserResponse])
 async def list_company_users(
     company_id: uuid.UUID,

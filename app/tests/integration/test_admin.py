@@ -429,3 +429,53 @@ async def test_super_admin_cannot_reuse_another_companys_phone(client, db_sessio
         headers=_auth_headers(admin_token),
     )
     assert response.status_code == 409
+
+
+async def test_super_admin_can_delete_company(client, db_session):
+    # Créer une entreprise
+    matricule, _ = await _register_and_login_owner(
+        client, company_name="A Supprimer", company_phone="+224901099999"
+    )
+    admin_token = await _create_super_admin_token(db_session)
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    assert len(companies) == 1
+    company_id = companies[0]["id"]
+
+    # Supprimer l'entreprise
+    delete_response = await client.delete(
+        f"/api/v1/admin/companies/{company_id}", headers=_auth_headers(admin_token)
+    )
+    assert delete_response.status_code == 200
+    body = delete_response.json()
+    assert body["company_id"] == company_id
+
+    # L'entreprise n'existe plus
+    get_response = await client.get(
+        f"/api/v1/admin/companies/{company_id}", headers=_auth_headers(admin_token)
+    )
+    assert get_response.status_code == 404
+
+    # La liste est vide
+    companies_after = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    assert companies_after == []
+
+    # Un owner ne peut pas appeler cet endpoint
+    _, owner_token = await _register_and_login_owner(
+        client, company_name="Autre Entreprise", company_phone="+224901099998"
+    )
+    other_companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    other_id = other_companies[0]["id"]
+    forbidden = await client.delete(
+        f"/api/v1/admin/companies/{other_id}", headers=_auth_headers(owner_token)
+    )
+    assert forbidden.status_code == 403
+
+
+async def test_super_admin_delete_company_not_found(client, db_session):
+    admin_token = await _create_super_admin_token(db_session)
+    response = await client.delete(
+        f"/api/v1/admin/companies/{uuid.uuid4()}", headers=_auth_headers(admin_token)
+    )
+    assert response.status_code == 404
+
