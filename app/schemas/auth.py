@@ -15,6 +15,10 @@ class MeResponse(BaseModel):
     permissions: list[str]
 
 
+class PublicPlatformSettingsResponse(BaseModel):
+    supported_currencies: list[str]
+
+
 class RegisterRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -92,4 +96,3 @@ class ResetPasswordRequest(BaseModel):
         if info.data.get("new_password") is not None and value != info.data["new_password"]:
             raise ValueError("Les mots de passe ne correspondent pas.")
         return value
-
