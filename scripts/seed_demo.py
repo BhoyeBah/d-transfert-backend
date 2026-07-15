@@ -23,6 +23,7 @@ from app.schemas.collaboration import CollaborationRequestCreate
 from app.schemas.employee import EmployeeCreateRequest
 from app.schemas.entry import EntryCreateRequest, EntryLineRequest
 from app.schemas.national_operation import NationalOperationCreateRequest, NationalOperationLineRequest
+from app.schemas.private_rate import PrivateRateCreateRequest
 from app.schemas.payment import PaymentCreateRequest
 from app.schemas.supplier import SupplierCreateRequest, SupplierRebalanceRequest
 from app.schemas.transfer import SendMode, TransferCreateRequest
@@ -32,6 +33,7 @@ from app.services import (
     employee_service,
     entry_service,
     national_operation_service,
+    private_rate_service,
     payment_service,
     proof_service,
     supplier_service,
@@ -317,6 +319,30 @@ async def _seed_collaborations_and_operations(
             target.owner.id,
             collaboration.id,
         )
+        await private_rate_service.set_rate(
+            session,
+            main.company.id,
+            main.owner.id,
+            PrivateRateCreateRequest(
+                collaboration_id=collaboration.id,
+                currency="XOF",
+                rate=rate + Decimal("14.500000"),
+            ),
+        )
+        approval_wallet = await wallet_service.create_wallet(
+            session,
+            target.company.id,
+            target.owner.id,
+            WalletCreateRequest(
+                name=f"Caisse XOF Partenaire {idx:02d}",
+                code=f"APPR{idx:02d}{seed_tag[-4:]}XOF",
+                type=WalletType.CASH,
+                phone=None,
+                currency="XOF",
+                initial_balance=Decimal("50000000"),
+                description=f"Wallet d'approbation seed {idx:02d}",
+            ),
+        )
         collaboration_count += 1
 
         xof_amount = Decimal("400000") + Decimal(idx) * Decimal("10000")
@@ -366,22 +392,23 @@ async def _seed_collaborations_and_operations(
                 reliquat_action="unallocated",
             ),
         )
-        await transfer_service.approve_transfer(
+        proof = await proof_service.upload_transfer_proof(
             session,
             target.company.id,
             target.owner.id,
-            transfer.id,
-            proof_id=None,
-        )
-        await proof_service.upload_transfer_proof(
-            session,
-            main.company.id,
-            main.owner.id,
             transfer.id,
             file_name=f"transfer-seed-{idx:02d}.png",
             content_type="image/png",
             content=b"\x89PNG\r\n\x1a\nseed-transfer-proof",
             note=f"Preuve seed transfer {idx:02d}",
+        )
+        await transfer_service.approve_transfer(
+            session,
+            target.company.id,
+            target.owner.id,
+            transfer.id,
+            wallet_id=approval_wallet.id,
+            proof_id=proof.id,
         )
         transfer_count += 1
         proof_count += 1
