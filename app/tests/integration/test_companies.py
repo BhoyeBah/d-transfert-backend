@@ -46,6 +46,25 @@ async def test_owner_can_update_own_company(client):
     assert me_response.json()["name"] == "Entreprise Mise à Jour"
 
 
+async def test_owner_cannot_rename_company_to_existing_name(client):
+    await _register_and_login_owner(
+        client, company_name="Autre Entreprise", company_phone="+224800000098"
+    )
+    _, token = await _register_and_login_owner(client)
+
+    response = await client.patch(
+        "/api/v1/companies/me",
+        json={
+            "name": "Autre Entreprise",
+            "address": "Conakry",
+            "phone": "+224800000001",
+            "default_currency": "GNF",
+        },
+        headers=_auth_headers(token),
+    )
+    assert response.status_code == 409
+
+
 async def test_employee_cannot_update_company(client):
     _, token = await _register_and_login_owner(client)
     employee_response = await client.post(

@@ -58,13 +58,23 @@ async def test_register_derives_matricule_from_company_name(client):
     assert response.json()["registration_code"] == "gk-business"
 
 
-async def test_register_suffixes_matricule_on_name_collision(client):
+async def test_register_rejects_duplicate_company_name(client):
+    await client.post("/api/v1/auth/register", json=_register_payload(company_name="GK Business"))
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(company_name="gk business", company_phone="+224600000099"),
+    )
+    assert response.status_code == 409
+
+
+async def test_register_suffixes_matricule_on_slug_collision(client):
+    # Deux noms distincts (donc autorisés) qui se réduisent au même slug une fois normalisés.
     first = await client.post(
         "/api/v1/auth/register", json=_register_payload(company_name="GK Business")
     )
     second = await client.post(
         "/api/v1/auth/register",
-        json=_register_payload(company_name="GK Business", company_phone="+224600000099"),
+        json=_register_payload(company_name="GK  Business!!", company_phone="+224600000099"),
     )
     assert first.json()["registration_code"] == "gk-business"
     assert second.json()["registration_code"] == "gk-business-2"

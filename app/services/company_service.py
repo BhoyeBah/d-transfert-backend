@@ -54,6 +54,8 @@ async def create_company_with_owner(
 ) -> tuple[Company, User]:
     if await company_repository.get_by_phone(session, company_phone) is not None:
         raise ConflictError("Ce numéro de téléphone est déjà utilisé par une entreprise.")
+    if await company_repository.get_by_name(session, company_name) is not None:
+        raise ConflictError("Ce nom d'entreprise est déjà utilisé.")
 
     registration_code = await _generate_registration_code(session, company_name)
 
@@ -95,7 +97,10 @@ async def update_my_company(
         if existing is not None and existing.id != company.id:
             raise ConflictError("Ce numéro de téléphone est déjà utilisé par une autre entreprise.")
         company.phone = payload.phone
-    if payload.name is not None:
+    if payload.name is not None and payload.name != company.name:
+        existing_name = await company_repository.get_by_name(session, payload.name)
+        if existing_name is not None and existing_name.id != company.id:
+            raise ConflictError("Ce nom d'entreprise est déjà utilisé.")
         company.name = payload.name
     if payload.address is not None:
         company.address = payload.address

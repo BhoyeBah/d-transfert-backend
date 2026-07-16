@@ -28,6 +28,11 @@ async def get_by_phone(session: AsyncSession, phone: str) -> Company | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_name(session: AsyncSession, name: str) -> Company | None:
+    result = await session.execute(select(Company).where(func.lower(Company.name) == name.lower()))
+    return result.scalar_one_or_none()
+
+
 async def list_all(session: AsyncSession) -> list[Company]:
     result = await session.execute(select(Company).order_by(Company.created_at.desc()))
     return list(result.scalars().all())
