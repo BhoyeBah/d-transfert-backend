@@ -100,7 +100,7 @@ async def test_super_admin_can_create_company(client, db_session):
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["registration_code"].startswith("DT-")
+    assert body["registration_code"] == "nouvelle-entreprise"
 
     companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
     assert any(company["phone"] == payload["company_phone"] for company in companies)

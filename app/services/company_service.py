@@ -9,7 +9,7 @@ from app.models.user import User
 from app.repositories import company_repository
 from app.schemas.company import AdminCompanyUpdateRequest
 from app.services import audit_service
-from app.utils.reference import generate_company_registration_code
+from app.utils.reference import generate_company_registration_code, slugify_company_name
 
 REGISTRATION_CODE_MAX_RETRIES = 5
 
@@ -19,6 +19,26 @@ async def get_my_company(session: AsyncSession, company_id: uuid.UUID) -> Compan
     if company is None:
         raise NotFoundError("Entreprise introuvable.")
     return company
+
+
+async def _generate_registration_code(session: AsyncSession, company_name: str) -> str:
+    # Dérivé du nom d'entreprise (ex. "GK Business" -> "gk-business") pour rester facile à
+    # retenir et à retaper, plutôt qu'un code aléatoire. Suffixé si déjà pris, avec repli sur
+    # l'ancien format aléatoire si le nom ne produit aucun slug exploitable.
+    base_slug = slugify_company_name(company_name)
+    if base_slug:
+        if await company_repository.get_by_registration_code(session, base_slug) is None:
+            return base_slug
+        for suffix in range(2, REGISTRATION_CODE_MAX_RETRIES + 2):
+            candidate = f"{base_slug}-{suffix}"
+            if await company_repository.get_by_registration_code(session, candidate) is None:
+                return candidate
+
+    for _ in range(REGISTRATION_CODE_MAX_RETRIES):
+        candidate = generate_company_registration_code()
+        if await company_repository.get_by_registration_code(session, candidate) is None:
+            return candidate
+    raise ConflictError("Impossible de générer un matricule unique, réessayez.")
 
 
 async def create_company_with_owner(
@@ -35,14 +55,7 @@ async def create_company_with_owner(
     if await company_repository.get_by_phone(session, company_phone) is not None:
         raise ConflictError("Ce numéro de téléphone est déjà utilisé par une entreprise.")
 
-    registration_code = None
-    for _ in range(REGISTRATION_CODE_MAX_RETRIES):
-        candidate = generate_company_registration_code()
-        if await company_repository.get_by_registration_code(session, candidate) is None:
-            registration_code = candidate
-            break
-    if registration_code is None:
-        raise ConflictError("Impossible de générer un matricule unique, réessayez.")
+    registration_code = await _generate_registration_code(session, company_name)
 
     company = Company(
         name=company_name,

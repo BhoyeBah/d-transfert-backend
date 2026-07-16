@@ -22,7 +22,7 @@ def _auth_headers(token: str) -> dict[str, str]:
 
 
 async def test_owner_can_create_employee_with_permissions(client):
-    _, owner_token = await _register_and_login_owner(client)
+    owner_matricule, owner_token = await _register_and_login_owner(client)
 
     response = await client.post(
         "/api/v1/employees",
@@ -36,7 +36,7 @@ async def test_owner_can_create_employee_with_permissions(client):
     )
     assert response.status_code == 201
     body = response.json()
-    assert body["matricule"].startswith("DT-")
+    assert body["matricule"].startswith(f"{owner_matricule}-EMP")
     assert body["permissions"] == ["wallet.manage"]
     assert body["is_active"] is True
 

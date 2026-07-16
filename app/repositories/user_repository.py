@@ -49,7 +49,9 @@ async def get_by_id(session: AsyncSession, user_id: uuid.UUID) -> User | None:
 
 
 async def get_by_matricule(session: AsyncSession, matricule: str) -> User | None:
-    result = await session.execute(select(User).where(User.matricule == matricule))
+    # Insensible à la casse : les matricules dérivés du nom d'entreprise (ex. "gk-business")
+    # doivent rester utilisables même si l'utilisateur les tape avec une casse différente.
+    result = await session.execute(select(User).where(func.lower(User.matricule) == matricule.lower()))
     return result.scalar_one_or_none()
 
 

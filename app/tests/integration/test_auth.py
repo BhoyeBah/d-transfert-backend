@@ -50,6 +50,39 @@ async def test_register_creates_company_and_owner(client):
     assert body["owner_user_id"]
 
 
+async def test_register_derives_matricule_from_company_name(client):
+    response = await client.post(
+        "/api/v1/auth/register", json=_register_payload(company_name="GK Business")
+    )
+    assert response.status_code == 201
+    assert response.json()["registration_code"] == "gk-business"
+
+
+async def test_register_suffixes_matricule_on_name_collision(client):
+    first = await client.post(
+        "/api/v1/auth/register", json=_register_payload(company_name="GK Business")
+    )
+    second = await client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(company_name="GK Business", company_phone="+224600000099"),
+    )
+    assert first.json()["registration_code"] == "gk-business"
+    assert second.json()["registration_code"] == "gk-business-2"
+
+
+async def test_login_matricule_is_case_insensitive(client):
+    register_response = await client.post(
+        "/api/v1/auth/register", json=_register_payload(company_name="GK Business")
+    )
+    matricule = register_response.json()["registration_code"]
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": matricule.upper(), "password": "SuperSecret123!"},
+    )
+    assert response.status_code == 200
+
+
 async def test_register_rejects_duplicate_company_phone(client):
     await client.post("/api/v1/auth/register", json=_register_payload())
     response = await client.post(

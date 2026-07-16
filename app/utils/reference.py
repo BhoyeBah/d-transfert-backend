@@ -1,8 +1,22 @@
+import re
 import secrets
+import unicodedata
 from datetime import date
 
 # Alphabet excluding visually ambiguous characters (0/O, 1/I).
 _ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+# Laisse de la marge pour le suffixe de désambiguïsation ("-2", "-3", ...) et le suffixe
+# d'employé ("-EMP001") tout en restant dans la limite de la colonne (String(32)).
+_COMPANY_SLUG_MAX_LENGTH = 20
+
+
+def slugify_company_name(name: str) -> str:
+    """Ex. "GK BUSINESS" -> "gk-business". Retourne "" si le nom ne contient aucun caractère
+    alphanumérique exploitable (ex. uniquement des symboles ou des idéogrammes)."""
+    normalized = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    return slug[:_COMPANY_SLUG_MAX_LENGTH].strip("-")
 
 
 def generate_reference(prefix: str, length: int = 8) -> str:
