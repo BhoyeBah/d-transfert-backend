@@ -359,7 +359,10 @@ async def test_private_rate_target_currency_defaults_to_null_wildcard(client):
     assert response.json()["target_currency"] is None
 
 
-async def test_private_rate_scoped_to_collaboration_forces_its_currency_as_target(client):
+async def test_private_rate_scoped_to_collaboration_respects_explicit_target_currency(client):
+    # The destination currency of a transfer is chosen freely per transfer, independent of the
+    # collaboration's own currency (which only drives the mutual balance) — so a rate scoped to
+    # a collaboration must be able to target a DIFFERENT currency than that collaboration's.
     (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
     create_response = await client.post(
         "/api/v1/collaborations",
@@ -372,6 +375,27 @@ async def test_private_rate_scoped_to_collaboration_forces_its_currency_as_targe
     response = await client.post(
         "/api/v1/private-rates",
         json={"collaboration_id": collaboration_id, "currency": "XOF", "target_currency": "USD", "rate": "15.5"},
+        headers=_auth_headers(token_a),
+    )
+    assert response.status_code == 201
+    assert response.json()["target_currency"] == "USD"
+
+
+async def test_private_rate_scoped_to_collaboration_defaults_to_its_currency_as_target(client):
+    # Without an explicit target currency, a rate scoped to a collaboration keeps defaulting to
+    # that collaboration's own currency (historical behavior, unchanged).
+    (matricule_a, token_a), (matricule_b, token_b) = await _setup_pair(client)
+    create_response = await client.post(
+        "/api/v1/collaborations",
+        json={"target_matricule": matricule_b, "currency": "GNF", "initial_rate": "16"},
+        headers=_auth_headers(token_a),
+    )
+    collaboration_id = create_response.json()["id"]
+    await client.post(f"/api/v1/collaborations/{collaboration_id}/accept", headers=_auth_headers(token_b))
+
+    response = await client.post(
+        "/api/v1/private-rates",
+        json={"collaboration_id": collaboration_id, "currency": "XOF", "rate": "15.5"},
         headers=_auth_headers(token_a),
     )
     assert response.status_code == 201

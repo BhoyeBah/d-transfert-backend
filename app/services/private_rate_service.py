@@ -12,16 +12,21 @@ from app.schemas.private_rate import PrivateRateCreateRequest
 async def _resolve_target_currency(
     session: AsyncSession, payload: PrivateRateCreateRequest
 ) -> str | None:
-    # Un taux lié à une collaboration précise convertit forcément vers la devise de CETTE
-    # collaboration — toute devise cible explicite est ignorée pour éviter une incohérence.
+    if payload.target_currency is not None:
+        return payload.target_currency
+    # Pas de devise cible explicite : un taux lié à une collaboration précise vise par défaut
+    # la devise de CETTE collaboration (la devise dans laquelle le bénéficiaire est payé pour un
+    # envoi de destination non précisée), mais reste un simple point de départ — la devise de
+    # destination d'un envoi est choisie librement à chaque envoi (cf. Transfer.target_currency),
+    # indépendamment de la devise de la collaboration.
     if payload.collaboration_id is not None:
         collaboration = await collaboration_repository.get_by_id(session, payload.collaboration_id)
         if collaboration is None:
             raise NotFoundError("Collaboration introuvable.")
         return collaboration.currency
-    # Pas de collaboration liée : si l'appelant ne précise pas de devise cible, le taux reste
-    # une règle "toutes destinations" (None), exactement le comportement d'avant ce champ.
-    return payload.target_currency
+    # Ni devise cible ni collaboration : le taux reste une règle "toutes destinations" (None),
+    # exactement le comportement d'avant ce champ.
+    return None
 
 
 async def set_rate(
