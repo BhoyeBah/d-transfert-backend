@@ -45,10 +45,8 @@ async def _generate_unique_reference(session: AsyncSession, company_id: uuid.UUI
     raise ConflictError("Impossible de générer une référence unique, réessayez.")
 
 
-def _convert_to_collaboration_currency(
-    amount: Decimal, from_currency: str, collaboration_currency: str, rate: Decimal
-) -> Decimal:
-    if from_currency == collaboration_currency:
+def _convert_amount(amount: Decimal, from_currency: str, to_currency: str, rate: Decimal) -> Decimal:
+    if from_currency == to_currency:
         return _quantize(amount)
     return _quantize(amount * rate)
 
@@ -102,13 +100,19 @@ async def create_transfer(
         session, collaboration.current_rate_id
     )
 
+    # La devise dans laquelle le bénéficiaire est payé est distincte de la devise de la
+    # collaboration (celle-ci ne sert qu'au solde commun/aux règlements entre collaborateurs,
+    # cf. payment_service) : par défaut identique, mais un envoi donné peut cibler une autre
+    # devise, du moment qu'un taux d'envoi privé actif existe pour cette paire précise.
+    target_currency = payload.target_currency or collaboration.currency
+
     # A transfer has no destination-country context to match against, so any active rate for
     # this currency PAIR is a candidate regardless of the (optional, purely informational)
     # country it was recorded with. `target_currency IS NULL` on a rate means "any destination"
     # (a rate set up without picking a target currency, kept for backward compatibility) — an
     # exact pair match is preferred over that wildcard whenever both exist.
     candidate_rates = await private_rate_repository.list_active_for_pair(
-        session, company_id, payload.currency, collaboration.currency
+        session, company_id, payload.currency, target_currency
     )
     private_rate_row = None
     for want_collaboration_id, want_operation_type in (
@@ -116,7 +120,7 @@ async def create_transfer(
         (collaboration.id, None),
         (None, None),
     ):
-        for want_target in (collaboration.currency, None):
+        for want_target in (target_currency, None):
             private_rate_row = next(
                 (
                     r
@@ -133,7 +137,7 @@ async def create_transfer(
             break
     if private_rate_row is None:
         raise ConflictError(
-            f"Aucun taux d'envoi privé actif pour la paire {payload.currency} → {collaboration.currency}. "
+            f"Aucun taux d'envoi privé actif pour la paire {payload.currency} → {target_currency}. "
             "Configurez-le ou réactivez-le depuis la page Taux d'envoi avant de créer cet envoi."
         )
     private_rate_used = private_rate_row.rate
@@ -185,8 +189,8 @@ async def create_transfer(
         # client est renseigné, la totalité du montant est une dette du client envers l'entreprise.
         client_debt_amount = _quantize(payload.amount)
 
-    converted_amount = _convert_to_collaboration_currency(
-        payload.amount, payload.currency, collaboration.currency, private_rate_used
+    converted_amount = _convert_amount(
+        payload.amount, payload.currency, target_currency, private_rate_used
     )
 
     client = None
@@ -205,6 +209,7 @@ async def create_transfer(
         reference=reference,
         amount=_quantize(payload.amount),
         currency=payload.currency,
+        target_currency=target_currency,
         beneficiary_name=payload.beneficiary_name,
         beneficiary_phone=payload.beneficiary_phone,
         send_mode=payload.send_mode,
@@ -304,10 +309,10 @@ async def approve_transfer(
     wallet = await wallet_repository.lock_by_id(session, wallet_id)
     if wallet is None or wallet.company_id != company_id:
         raise NotFoundError(f"Wallet introuvable : {wallet_id}.")
-    if wallet.currency != collaboration.currency:
+    if wallet.currency != transfer.target_currency:
         raise ConflictError(
             f"Le wallet sélectionné est en {wallet.currency}, mais le paiement doit être effectué "
-            f"en {collaboration.currency}."
+            f"en {transfer.target_currency}."
         )
     await wallet_service.apply_movement(
         session,
@@ -333,7 +338,7 @@ async def approve_transfer(
         collaboration_id=collaboration.id,
         source_type="transfer",
         source_id=transfer.id,
-        currency=collaboration.currency,
+        currency=transfer.target_currency,
         amount=transfer.converted_amount,
         debtor_company_id=transfer.company_id,
         creditor_company_id=company_id,

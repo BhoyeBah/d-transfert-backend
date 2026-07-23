@@ -45,6 +45,11 @@ class Transfer(Base, UUIDPKMixin, TimestampMixin):
     reference: Mapped[str] = mapped_column(String(32), index=True, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    # Devise dans laquelle le bénéficiaire est réellement payé (et donc devise du wallet exigé
+    # à l'approbation, et devise du mouvement de solde collaborateur pour cet envoi). Distincte
+    # de la devise de la collaboration : par défaut identique à celle-ci, mais peut être choisie
+    # librement par envoi (ex. collaboration réglée en XOF, envoi payé en GNF).
+    target_currency: Mapped[str] = mapped_column(String(8), nullable=False)
     beneficiary_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     beneficiary_phone: Mapped[str] = mapped_column(String(32), nullable=False)
     send_mode: Mapped[SendMode] = mapped_column(Enum(SendMode, native_enum=False, length=16), nullable=False)

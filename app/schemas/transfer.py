@@ -18,6 +18,15 @@ class TransferCreateRequest(BaseModel):
     entry_id: uuid.UUID | None = None
     amount: Decimal = Field(gt=0)
     currency: str = Field(min_length=3, max_length=8)
+    target_currency: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=8,
+        description=(
+            "Devise dans laquelle le bénéficiaire est payé pour cet envoi. Absente : reprend la "
+            "devise de la collaboration (comportement historique)."
+        ),
+    )
     beneficiary_name: str | None = Field(default=None, max_length=255)
     beneficiary_phone: str = Field(min_length=1, max_length=32)
     send_mode: SendMode
@@ -35,9 +44,11 @@ class TransferCreateRequest(BaseModel):
         ),
     )
 
-    @field_validator("currency")
+    @field_validator("currency", "target_currency")
     @classmethod
-    def _validate_currency(cls, value: str) -> str:
+    def _validate_currency(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if not is_supported_currency(value):
             raise ValueError(f"Devise non supportée : {value}")
         return value.upper()
@@ -70,6 +81,7 @@ class TransferResponse(BaseModel):
     client_debt_amount: Decimal | None
     amount: Decimal
     currency: str
+    target_currency: str
     beneficiary_name: str | None
     beneficiary_phone: str
     send_mode: SendMode

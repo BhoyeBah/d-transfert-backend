@@ -763,6 +763,63 @@ async def test_only_collaborator_can_approve_and_balance_updates(client):
     assert wallet_b_after.json()["balance"] == "920000.00"
 
 
+async def test_transfer_target_currency_can_differ_from_collaboration_currency(client):
+    # Reproduces the reported case: a collaboration settled in XOF (the collaboration currency
+    # only drives the mutual balance / collaborator payments), but the sender wants to pay THIS
+    # beneficiary in GNF using their own XOF -> GNF private rate — decoupled from whatever
+    # currency the collaboration itself happens to be fixed to.
+    collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(
+        client, currency="XOF"
+    )
+    await client.post(
+        "/api/v1/private-rates",
+        json={"currency": "XOF", "target_currency": "GNF", "rate": "16.2"},
+        headers=_auth_headers(token_a),
+    )
+    wallet_b_xof = await _create_wallet(client, token_b, "CASHXOF", currency="XOF", initial_balance="1000000")
+    wallet_b_gnf = await _create_wallet(client, token_b, "CASHGNF", currency="GNF", initial_balance="1000000")
+
+    create_response = await client.post(
+        "/api/v1/transfers",
+        json={
+            "collaboration_id": collaboration_id,
+            "amount": "5000",
+            "currency": "XOF",
+            "target_currency": "GNF",
+            "beneficiary_phone": "+224600000099",
+            "send_mode": "cash",
+        },
+        headers=_auth_headers(token_a),
+    )
+    assert create_response.status_code == 201
+    body = create_response.json()
+    assert body["target_currency"] == "GNF"
+    assert body["converted_amount"] == "81000.00"
+    transfer_id = body["id"]
+    proof_id = await _upload_proof(client, token_b, transfer_id)
+
+    # The wallet used to pay the beneficiary must be in the transfer's target currency (GNF),
+    # not the collaboration's currency (XOF).
+    wrong_wallet = await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_xof, "proof_id": proof_id},
+        headers=_auth_headers(token_b),
+    )
+    assert wrong_wallet.status_code == 409
+
+    approve_response = await client.post(
+        f"/api/v1/transfers/{transfer_id}/approve",
+        json={"wallet_id": wallet_b_gnf, "proof_id": proof_id},
+        headers=_auth_headers(token_b),
+    )
+    assert approve_response.status_code == 200
+
+    balance_b = await client.get(
+        f"/api/v1/collaborations/{collaboration_id}/balance", headers=_auth_headers(token_b)
+    )
+    assert balance_b.json()["balance"] == "81000.00"
+
+
 async def test_reject_transfer_reverts_entry_and_leaves_balance_untouched(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
     cash_id = await _create_wallet(client, token_a, "CASH")
