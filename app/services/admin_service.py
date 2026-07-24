@@ -216,6 +216,38 @@ async def set_user_status(
     return _user_to_response(user)
 
 
+async def update_company_user(
+    session: AsyncSession,
+    acted_by_user_id: uuid.UUID,
+    company_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: AdminUserUpdateRequest,
+) -> AdminUserResponse:
+    # get_by_company_and_id exclut volontairement les owners (utilisé par employee_service
+    # pour les employés uniquement) : l'admin plateforme doit pouvoir modifier n'importe quel
+    # compte de l'entreprise, owner compris.
+    user = await user_repository.get_by_id(session, user_id)
+    if user is None or user.company_id != company_id:
+        raise NotFoundError("Utilisateur introuvable.")
+
+    if payload.phone is not None and payload.phone != user.phone:
+        existing = await user_repository.get_by_company_and_phone(session, company_id, payload.phone)
+        if existing is not None and existing.id != user.id:
+            raise ConflictError("Ce numéro de téléphone est déjà utilisé dans cette entreprise.")
+        user.phone = payload.phone
+    if payload.full_name is not None:
+        user.full_name = payload.full_name
+    if payload.password is not None:
+        user.password_hash = hash_password(payload.password)
+
+    await audit_service.log_action(
+        session, company_id, acted_by_user_id, "admin.company_user_update", "user", user.id,
+        note=f"full_name={payload.full_name!r} phone={payload.phone!r} password={'yes' if payload.password else 'no'}",
+    )
+    await session.commit()
+    return _user_to_response(user)
+
+
 async def list_platform_admins(session: AsyncSession) -> list[AdminUserResponse]:
     admins = await user_repository.list_super_admins(session)
     return [_user_to_response(admin) for admin in admins]

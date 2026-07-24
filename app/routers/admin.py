@@ -144,6 +144,17 @@ async def update_user_status(
     return await admin_service.set_user_status(db, current_user.id, user_id, payload.is_active)
 
 
+@router.patch("/companies/{company_id}/users/{user_id}", response_model=AdminUserResponse)
+async def update_company_user(
+    company_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: AdminUserUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(_require_super_admin),
+) -> AdminUserResponse:
+    return await admin_service.update_company_user(db, current_user.id, company_id, user_id, payload)
+
+
 @router.patch("/platform-admins/{admin_id}", response_model=AdminUserResponse)
 async def update_platform_admin(
     admin_id: uuid.UUID,

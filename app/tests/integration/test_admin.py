@@ -239,6 +239,49 @@ async def test_super_admin_can_list_and_suspend_company_users(client, db_session
     assert login_after_suspend.status_code == 401
 
 
+async def test_super_admin_can_update_company_user(client, db_session):
+    matricule, owner_token = await _register_and_login_owner(client)
+    admin_token = await _create_super_admin_token(db_session)
+
+    companies = (await client.get("/api/v1/admin/companies", headers=_auth_headers(admin_token))).json()
+    company_id = companies[0]["id"]
+
+    users = (
+        await client.get(f"/api/v1/admin/companies/{company_id}/users", headers=_auth_headers(admin_token))
+    ).json()
+    owner_user_id = users[0]["id"]
+
+    update_response = await client.patch(
+        f"/api/v1/admin/companies/{company_id}/users/{owner_user_id}",
+        json={"full_name": "Owner Renommé", "phone": "+224900777777", "password": "NouveauSecret123!"},
+        headers=_auth_headers(admin_token),
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["full_name"] == "Owner Renommé"
+    assert update_response.json()["phone"] == "+224900777777"
+
+    # The owner can now log in with the reset password.
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": matricule, "password": "NouveauSecret123!"},
+    )
+    assert login_response.status_code == 200
+
+    # The old password no longer works.
+    old_password_login = await client.post(
+        "/api/v1/auth/login",
+        json={"matricule": matricule, "password": "SuperSecret123!"},
+    )
+    assert old_password_login.status_code == 401
+
+    forbidden = await client.patch(
+        f"/api/v1/admin/companies/{company_id}/users/{owner_user_id}",
+        json={"full_name": "Nope"},
+        headers=_auth_headers(owner_token),
+    )
+    assert forbidden.status_code == 403
+
+
 async def test_super_admin_can_view_system_logs_from_failed_login(client, db_session):
     matricule, owner_token = await _register_and_login_owner(client)
     admin_token = await _create_super_admin_token(db_session)
