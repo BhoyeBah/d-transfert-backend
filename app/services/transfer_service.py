@@ -293,7 +293,7 @@ async def approve_transfer(
     acted_by_user_id: uuid.UUID,
     transfer_id: uuid.UUID,
     wallet_id: uuid.UUID,
-    proof_id: uuid.UUID,
+    proof_id: uuid.UUID | None = None,
 ) -> Transfer:
     transfer, collaboration = await _get_transfer_for_party(
         session, company_id, transfer_id, for_update=True
@@ -326,12 +326,13 @@ async def approve_transfer(
     )
     transfer.wallet_id = wallet_id
 
-    # Une preuve du paiement au bénéficiaire est exigée pour approuver, et doit avoir été
+    # La preuve du paiement au bénéficiaire est optionnelle : si fournie, elle doit avoir été
     # téléversée par le collaborateur qui approuve (celui qui a effectué le paiement).
-    proof = await proof_repository.get_by_id(session, proof_id)
-    if proof is None or proof.transfer_id != transfer.id or proof.company_id != company_id:
-        raise NotFoundError(f"Preuve introuvable : {proof_id}.")
-    transfer.proof_id = proof_id
+    if proof_id is not None:
+        proof = await proof_repository.get_by_id(session, proof_id)
+        if proof is None or proof.transfer_id != transfer.id or proof.company_id != company_id:
+            raise NotFoundError(f"Preuve introuvable : {proof_id}.")
+        transfer.proof_id = proof_id
 
     await collaborator_balance_repository.create(
         session,

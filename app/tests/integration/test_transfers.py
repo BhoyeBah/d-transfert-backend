@@ -658,7 +658,7 @@ async def test_approve_transfer_rejects_insufficient_wallet_balance(client):
     assert response.status_code == 422
 
 
-async def test_approve_transfer_requires_proof_id(client):
+async def test_approve_transfer_succeeds_without_proof(client):
     collaboration_id, (_, token_a), (_, token_b) = await _setup_accepted_collaboration(client)
     wallet_b_id = await _create_wallet(client, token_b, "CASHB", currency="GNF", initial_balance="1000000")
     create_response = await client.post(
@@ -679,7 +679,9 @@ async def test_approve_transfer_requires_proof_id(client):
         json={"wallet_id": wallet_b_id},
         headers=_auth_headers(token_b),
     )
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["status"] == "approved"
+    assert response.json()["proof_id"] is None
 
 
 async def test_approve_transfer_rejects_proof_from_wrong_company(client):
