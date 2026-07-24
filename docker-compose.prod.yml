@@ -29,11 +29,18 @@ services:
       # du dépôt (app/core/config.py refuse de démarrer en production si c'est le cas).
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY doit être défini, ex. via `openssl rand -hex 32`}
       JWT_ALGORITHM: HS256
+      # Mot de passe initial du compte Super Admin (matricule ADMIN), utilisé UNIQUEMENT à sa
+      # création — un changement de mot de passe fait ensuite depuis l'administration n'est
+      # jamais écrasé par un redémarrage du conteneur.
+      SUPER_ADMIN_INITIAL_PASSWORD: ${SUPER_ADMIN_INITIAL_PASSWORD:?SUPER_ADMIN_INITIAL_PASSWORD doit être défini}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
       UPLOAD_DIR: /app/uploads
       BACKUP_DIR: /app/backups
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-10}
+      # Optionnel : stockage partagé du rate limiting (voir app/core/rate_limit.py).
+      # Laisser vide utilise un compteur en mémoire par processus.
+      REDIS_URL: ${REDIS_URL:-}
     volumes:
       # Sans ce volume nommé, chaque redéploiement du conteneur backend efface les
       # preuves déjà uploadées (stockage local — cf. cahier des charges §36.2, qui

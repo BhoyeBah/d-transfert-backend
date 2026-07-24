@@ -2,6 +2,7 @@ import asyncio
 import sys
 import uuid
 from sqlalchemy import text
+from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal
 from app.core.security import hash_password
 
@@ -16,30 +17,25 @@ async def main() -> None:
             )
             existing = result.fetchone()
             if existing:
-                print("L'administrateur existe déjà. Mise à jour du mot de passe...")
-                await session.execute(
-                    text("UPDATE users SET password_hash = :password_hash WHERE matricule = :matricule"),
-                    {
-                        "matricule": "ADMIN",
-                        "password_hash": hash_password("passer123")
-                    }
-                )
-                await session.commit()
-                print("Mot de passe mis à jour avec succès.")
+                # Ne jamais réécrire le mot de passe d'un compte existant : ce script n'est
+                # qu'un filet de sécurité pour recréer le compte s'il a disparu (ex. après une
+                # restauration de sauvegarde), pas un reset périodique qui annulerait un
+                # changement de mot de passe fait depuis l'interface d'administration.
+                print("L'administrateur existe déjà, rien à faire.")
                 return
 
             # Créer l'administrateur
             user_id = uuid.uuid4()
-            pwd_hash = hash_password("passer123")
-            
+            pwd_hash = hash_password(get_settings().super_admin_initial_password)
+
             await session.execute(
                 text("""
                     INSERT INTO users (
-                        id, company_id, role_id, matricule, full_name, phone, 
-                        password_hash, is_owner, is_super_admin, is_active, 
+                        id, company_id, role_id, matricule, full_name, phone,
+                        password_hash, is_owner, is_super_admin, is_active,
                         failed_login_attempts, created_at, updated_at
                     ) VALUES (
-                        :id, NULL, NULL, :matricule, 'Super Admin', '+224600000000', 
+                        :id, NULL, NULL, :matricule, 'Super Admin', '+224600000000',
                         :password_hash, FALSE, TRUE, TRUE, 0, NOW(), NOW()
                     )
                 """),
